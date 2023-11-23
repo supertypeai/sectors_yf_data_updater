@@ -1,0 +1,4 @@
+.env
+newenv
+*.ipynb
+*.pyc
