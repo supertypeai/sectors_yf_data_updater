@@ -459,24 +459,20 @@ class YFDataUpdater:
 
             return c.convert(1, from_currency, to_currency, conversion_date)
 
-        new_records = copy.deepcopy(financial_records)
+        new_records = []
 
-        for record in new_records:
-            try:
-                financial_currency = currency_dict[record["symbol"]]
-            except KeyError:
-                try:
-                    financial_currency = self._request_yf_api(
-                        record["symbol"], "info", ["financialCurrency"]
-                    )["financialCurrency"]
-                except Exception as e:
-                    print(f"Failed to get financial currency for {record['symbol']}")
-                    continue
+        for record in financial_records:
+            financial_currency = currency_dict.get(record["symbol"])
+            if not financial_currency:
+                financial_currency = self._request_yf_api(
+                    record["symbol"], "info").get("financialCurrency")
 
             if financial_currency == "USD":
                 conversion_date = datetime.strptime(record["date"], "%Y-%m-%d").date()
                 conversion_rate = get_conversion_rate("USD", "IDR", conversion_date)
-                for k, v in record.items():
+                
+                new_record = record.copy()
+                for k, v in new_record.items():
                     if k in [
                         "total_revenue",
                         "gross_income",
@@ -499,10 +495,18 @@ class YFDataUpdater:
                         "free_cash_flow",
                         "net_operating_cash_flow",
                     ]:
-                        if type(record[k]) == int:
-                            record[k] = self._cast_int(v * conversion_rate)
-                        elif type(record[k]) == float:
-                            record[k] = v * conversion_rate
+                        if type(new_record[k]) == int:
+                            new_record[k] = self._cast_int(v * conversion_rate)
+                        elif type(new_record[k]) == float:
+                            new_record[k] = v * conversion_rate
+                                                        
+                new_records.append(new_record)
+            
+            elif financial_currency == "IDR":
+                new_records.append(record)
+            
+            else:
+                print(f"Unknown currency: {financial_currency} for {record['symbol']}")
 
         return new_records
 
@@ -590,15 +594,17 @@ class YFDataUpdater:
             records = self.new_records["financials"][period]
             if records:
                 response = (
-                    supabase_client.table("idx_key_stats")
-                    .select("symbol, financial_currency")
+                    supabase_client.table("idx_company_profile")
+                    .select("symbol, yf_currency")
                     .execute()
                 )
+                yf_currency_map = {1:"IDR", 2:"USD"}
                 currency_dict = {
-                    entry["symbol"]: entry["financial_currency"]
+                    entry["symbol"]: yf_currency_map.get(entry["yf_currency"])
                     for entry in response.data
                 }
                 records = self.convert_financials_currency(records, currency_dict)
+                self.new_records["financials"][period] = records
                 on_conflict = "symbol, date"
             else:
                 print(f"No records to upsert to {target_table}")
