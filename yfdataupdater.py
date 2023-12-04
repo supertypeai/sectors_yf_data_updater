@@ -279,27 +279,30 @@ class YFDataUpdater:
                 on=["symbol", "date"],
                 how="outer",
             )
-
-            companies_financials_df["wsj_format"] = companies_financials_df[
-                "symbol"
-            ].map(wsj_formats)
-            companies_financials_df.loc[
-                companies_financials_df["wsj_format"].isin([3, 4]),
-                [
-                    "gross_income",
-                    "ebitda",
-                    "cash_and_short_term_investments",
-                    "total_non_current_assets",
-                    "total_current_liabilities",
-                ],
-            ] = None
-            companies_financials_df.loc[
-                companies_financials_df["wsj_format"].isin([4]),
-                ["ebit", "interest_expense_non_operating"],
-            ] = None
-            companies_financials_df = companies_financials_df.drop(
-                columns=["wsj_format"]
-            )
+            
+            companies_financials_df['source'] = 1
+            
+            if wsj_formats:
+                companies_financials_df["wsj_format"] = companies_financials_df[
+                    "symbol"
+                ].map(wsj_formats)
+                companies_financials_df.loc[
+                    companies_financials_df["wsj_format"].isin([3, 4]),
+                    [
+                        "gross_income",
+                        "ebitda",
+                        "cash_and_short_term_investments",
+                        "total_non_current_assets",
+                        "total_current_liabilities",
+                    ],
+                ] = None
+                companies_financials_df.loc[
+                    companies_financials_df["wsj_format"].isin([4]),
+                    ["ebit", "interest_expense_non_operating"],
+                ] = None
+                companies_financials_df = companies_financials_df.drop(
+                    columns=["wsj_format"]
+                )
 
             int_cols = [
                 "net_operating_cash_flow",
@@ -324,6 +327,7 @@ class YFDataUpdater:
                 "free_cash_flow",
                 "interest_expense_non_operating",
                 "operating_income",
+                "source"
             ]
 
             self.new_records["financials"][period] = self._convert_df_to_records(
@@ -421,7 +425,7 @@ class YFDataUpdater:
         self.new_records["daily_data"] = all_symbols_rows
         self.unadded_data["daily_data"] = unadded_symbols
 
-    def extract_symbols_from_db(self, supabase_client, batch_size=100, batch_num=1):
+    def extract_symbols_from_db(self, supabase_client, batch_size=100, batch_num=1, filter_source=False):
         """Extracts symbols from a table in the database
 
         Args:
@@ -432,8 +436,12 @@ class YFDataUpdater:
         Raises:
             Exception:  If there are no symbols to extract
         """
-        response = supabase_client.rpc("get_active_symbols", params=None).execute()
-        symbols = [symbol["symbol"] for symbol in response.data]
+        response = supabase_client.table("idx_active_company_profile").select("symbol", "current_source").order('updated_on', desc=False).execute()
+        if filter_source:
+            current_source_map = {"YF": 1, "WSJ": 2, None:-1}
+            symbols = [symbol["symbol"] for symbol in response.data if symbol["current_source"] == current_source_map["YF"]]
+        else:
+            symbols = [symbol["symbol"] for symbol in response.data]
 
         if batch_size == -1:
             batch_symbols = symbols
@@ -577,12 +585,13 @@ class YFDataUpdater:
                 row["symbol"]: row["last_date"] for row in response.data
             }
 
-            response = (
-                supabase_client.table("idx_active_company_profile")
-                .select("symbol", "wsj_format")
-                .execute()
-            )
+            response = supabase_client.table("idx_active_company_profile").select("symbol", "wsj_format", "yf_currency").execute()
             wsj_formats = {row["symbol"]: row["wsj_format"] for row in response.data}
+            yf_currency_map = {1:"IDR", 2:"USD"}
+            currency_dict = {
+                row["symbol"]: yf_currency_map.get(row["yf_currency"])
+                for row in response.data
+            }
 
             self.create_financials_records(
                 quarterly=quarterly,
@@ -591,16 +600,6 @@ class YFDataUpdater:
             )
             records = self.new_records["financials"][period]
             if records:
-                response = (
-                    supabase_client.table("idx_company_profile")
-                    .select("symbol, yf_currency")
-                    .execute()
-                )
-                yf_currency_map = {1:"IDR", 2:"USD"}
-                currency_dict = {
-                    entry["symbol"]: yf_currency_map.get(entry["yf_currency"])
-                    for entry in response.data
-                }
                 records = self.convert_financials_currency(records, currency_dict)
                 self.new_records["financials"][period] = records
                 on_conflict = "symbol, date"
