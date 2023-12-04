@@ -23,8 +23,7 @@ def main(request_dict):
     supabase_client = create_client(url, key)
 
     updater = YFDataUpdater()
-    updater.extract_symbols_from_db(supabase_client, batch_size, batch_num)
-    updater.upsert_data_to_db(supabase_client, target_table)
+    updater.upsert_data_to_db(supabase_client, target_table, batch_size, batch_num)
 
     return f"Successfully upserted {target_table} table. The following data weren't updated due to errors: {updater.unadded_data}"
 
