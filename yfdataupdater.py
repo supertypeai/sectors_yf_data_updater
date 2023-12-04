@@ -59,7 +59,7 @@ class YFDataUpdater:
     def _request_yf_api(self, symbol, attribute):
         ticker = yf.Ticker(symbol, session=self._session)
         data_dict = getattr(ticker, attribute)
-        if type(data_dict) == pd.DataFrame:
+        if type(data_dict) in [pd.DataFrame, pd.Series]:
             data_dict = data_dict.to_dict()
 
         return data_dict
@@ -79,7 +79,19 @@ class YFDataUpdater:
             return pd.to_datetime(ts, unit="s").strftime("%Y-%m-%d")
         except:
             return np.nan
-
+        
+    # def create_dividend_records(self, last_dividend_dates={}):
+    #     attribute = "dividends"
+    #     companies_data_dict = self._get_companies_data(attribute)
+        
+    #     for symbol, data in companies_data_dict.items():
+    #         last_dividend_date = last_dividend_dates.get(symbol, "1900-01-01")
+    #         ser = pd.Series(data)
+    #         companies_data_dict[symbol] = ser[ser.index > last_dividend_date].to_dict()
+        
+        # self.new_records["dividends"] =
+        
+        
     def create_key_stats_records(self):
         attribute = "info"
         companies_data_dict = self._get_companies_data(attribute)
@@ -516,7 +528,15 @@ class YFDataUpdater:
 
         return new_records
 
-    def upsert_data_to_db(self, supabase_client, target_table):
+    def upsert_data_to_db(self, supabase_client, target_table, batch_size=100, batch_num=1):
+        """Upserts data to the target tabble in the database
+
+        Args:
+            supabase_client (SupabaseClient): Supabase client
+            target_table (str): Target table name
+            batch_size (int, optional): Number of symbols to extract. Defaults to 100. If batch_size is set to -1, all symbols will be extracted.
+            batch_num (int, optional): Batch number. Defaults to 1.
+        """
         def batch_upsert(
             target_table, records, on_conflict, batch_size=25, max_retry=3
         ):
@@ -541,7 +561,12 @@ class YFDataUpdater:
         except Exception as e:
             print(f"Table {target_table} does not exist")
             return
-
+        
+        if "financials" in target_table:
+            self.extract_symbols_from_db(supabase_client, batch_size, batch_num, filter_source=True)
+        else:
+            self.extract_symbols_from_db(supabase_client, batch_size, batch_num, filter_source=False)
+            
         if "daily_data" in target_table:
             response = supabase_client.rpc("get_last_daily_data", params=None).execute()
             last_daily_data = {
@@ -567,7 +592,15 @@ class YFDataUpdater:
             else:
                 print(f"No records to upsert to {target_table}")
                 return
-
+            
+        # elif "dividend" in target_table:
+        #     response = supabase_client.rpc(
+        #         "get_last_date", params={"table_name": target_table}
+        #     ).execute()
+        #     last_dividend_dates = {
+        #         row["symbol"]: row["last_date"] for row in response.data
+        #     }
+            
         elif "financials" in target_table:
             if "quarterly" in target_table:
                 quarterly = True
