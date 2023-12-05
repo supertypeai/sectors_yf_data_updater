@@ -378,17 +378,13 @@ class YFDataUpdater:
 
         if len(data) > 0:
             data.index = data.index.strftime("%Y-%m-%d")
-            try:
-                last_market_cap = ticker.basic_info["marketCap"]
-            except:
-                last_market_cap = None
-            data.loc[data.index.max(), "Market Cap"] = last_market_cap
+            data.loc[data.index.max(), "Market Cap"] = ticker.info.get('marketCap')
             data = data.replace(np.nan, None)
 
             if last_daily_datum:
-                if (
-                    last_close == data.loc[last_date, "Close"]
+                if (last_close == data.loc[last_date, "Close"]
                     and last_volume == data.loc[last_date, "Volume"]
+                    and last_market_cap == data.loc[last_date, "Market Cap"]
                 ):
                     data = data.drop(last_date)
 
