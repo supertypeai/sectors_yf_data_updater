@@ -384,7 +384,6 @@ class YFDataUpdater:
             if last_daily_datum:
                 if (last_close == data.loc[last_date, "Close"]
                     and last_volume == data.loc[last_date, "Volume"]
-                    and last_market_cap == data.loc[last_date, "Market Cap"]
                 ):
                     data = data.drop(last_date)
 
