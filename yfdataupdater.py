@@ -30,6 +30,7 @@ class YFDataUpdater:
             "key_stats": None,
             "financials": {"quarterly": None, "annual": None},
             "daily_data": None,
+            "dividend": None,
         }
         self.unadded_data = {}
         self._updated_ecb_rates = False
@@ -80,17 +81,42 @@ class YFDataUpdater:
         except:
             return np.nan
         
-    # def create_dividend_records(self, last_dividend_dates={}):
-    #     attribute = "dividends"
-    #     companies_data_dict = self._get_companies_data(attribute)
+    def create_dividend_records(self, last_dividend_dates={}):
+        attribute = "dividends"
+        companies_data_dict = self._get_companies_data(attribute)
+
+        records = []
+        for symbol, data in companies_data_dict.items():
+            if data:
+                ticker = yf.Ticker(symbol, session=self._session)
+                five_yrs_ago = (pd.Timestamp.now() - pd.DateOffset(years=5)).replace(month=1, day=1).strftime("%Y-%m-%d")
+                last_dividend_date = last_dividend_dates.get(symbol, five_yrs_ago)
+                
+                ser = pd.Series(data)
+                ser = ser[ser.index > last_dividend_date] 
+                
+                mean_prices = {}
+                for date, val in ser.items():
+                    this_yr = pd.Timestamp.now().year
+                    if date.year < this_yr:
+                        mean_price = mean_prices.get(date, None)
+                        if not mean_price:
+                            start_date = date.replace(month=1, day=1).strftime("%Y-%m-%d")
+                            end_date = date.replace(month=12, day=31).strftime("%Y-%m-%d")
+                            price_hist = ticker.history(start=start_date, end=end_date, auto_adjust=False)
+                            mean_price = price_hist["Close"].mean()
+                            mean_prices[date] = mean_price
+                        div_yield = val / mean_price
+                    else:
+                        div_yield = None
+
+                    records.append({"symbol": symbol, "date": date.strftime("%Y-%m-%d"), "dividend": val, "yield": div_yield})
         
-    #     for symbol, data in companies_data_dict.items():
-    #         last_dividend_date = last_dividend_dates.get(symbol, "1900-01-01")
-    #         ser = pd.Series(data)
-    #         companies_data_dict[symbol] = ser[ser.index > last_dividend_date].to_dict()
+        dt_now = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
+        records = [{"updated_on": dt_now, **record} for record in records]
         
-        # self.new_records["dividends"] =
-        
+        self.new_records["dividend"] = records
+            
         
     def create_key_stats_records(self):
         attribute = "info"
@@ -479,6 +505,7 @@ class YFDataUpdater:
             if not financial_currency:
                 financial_currency = self._request_yf_api(
                     record["symbol"], "info").get("financialCurrency")
+                currency_dict[record["symbol"]] = financial_currency
 
             if financial_currency == "USD":
                 conversion_date = datetime.strptime(record["date"], "%Y-%m-%d").date()
@@ -574,27 +601,25 @@ class YFDataUpdater:
                 for entry in response.data
             }
             self.create_daily_data_records(last_daily_data)
-            daily_data_records = self.new_records["daily_data"]
+            records = self.new_records["daily_data"]
             on_conflict = "symbol, date"
-
-            batch_upsert(target_table, daily_data_records, on_conflict)
 
         elif "key_stats" in target_table:
             self.create_key_stats_records()
             records = self.new_records["key_stats"]
-            if records:
-                on_conflict = "symbol"
-            else:
-                print(f"No records to upsert to {target_table}")
-                return
+            on_conflict = "symbol"
             
-        # elif "dividend" in target_table:
-        #     response = supabase_client.rpc(
-        #         "get_last_date", params={"table_name": target_table}
-        #     ).execute()
-        #     last_dividend_dates = {
-        #         row["symbol"]: row["last_date"] for row in response.data
-        #     }
+        elif "dividend" in target_table:
+            response = supabase_client.rpc(
+                "get_last_date", params={"table_name": target_table}
+            ).execute()
+            last_dividend_dates = {
+                row["symbol"]: row["last_date"] for row in response.data
+            }
+            self.create_dividend_records(last_dividend_dates)
+            records = self.new_records["dividend"]
+            on_conflict = "symbol, date"
+
             
         elif "financials" in target_table:
             if "quarterly" in target_table:
@@ -629,10 +654,11 @@ class YFDataUpdater:
             records = self.new_records["financials"][period]
             if records:
                 records = self.convert_financials_currency(records, currency_dict)
-                self.new_records["financials"][period] = records
-                on_conflict = "symbol, date"
-            else:
-                print(f"No records to upsert to {target_table}")
-                return
+            self.new_records["financials"][period] = records
+            on_conflict = "symbol, date"
 
+        if records:
             batch_upsert(target_table, records, on_conflict)
+            print(f"Successfully upserted {len(records)} records to {target_table}")
+        else:
+            print("No new records to upsert")
