@@ -29,7 +29,7 @@ class YFDataUpdater:
         self.new_records = {
             "key_stats": None,
             "financials": {"quarterly": None, "annual": None},
-            "daily_data": None,
+            "daily_data": {"price_vol":None, "mcap": None},
             "dividend": None,
         }
         self.unadded_data = {}
@@ -373,17 +373,16 @@ class YFDataUpdater:
             )
 
     def _get_daily_data(self, symbol, last_daily_datum=None):
-        symbol_rows = []
+        price_vol_rows = []
 
         ticker = yf.Ticker(symbol, session=self._session)
         date_400d_ago = (datetime.now() - timedelta(days=400)).strftime("%Y-%m-%d")
 
         if last_daily_datum:
-            last_date, last_close, last_volume, last_market_cap = (
+            last_date, last_close, last_volume = (
                 last_daily_datum["date"],
                 last_daily_datum["close"],
                 last_daily_datum["volume"],
-                last_daily_datum["market_cap"],
             )
             data = ticker.history(start=last_date, auto_adjust=False)[
                 ["Close", "Volume"]
@@ -404,7 +403,6 @@ class YFDataUpdater:
 
         if len(data) > 0:
             data.index = data.index.strftime("%Y-%m-%d")
-            data.loc[data.index.max(), "Market Cap"] = ticker.info.get('marketCap')
             data = data.replace(np.nan, None)
 
             if last_daily_datum:
@@ -414,30 +412,36 @@ class YFDataUpdater:
                     data = data.drop(last_date)
 
             for idx, row in data.iterrows():
-                symbol_rows.append(
+                price_vol_rows.append(
                     {
                         "symbol": symbol,
                         "date": idx,
                         "close": self._cast_int(row["Close"]),
-                        "volume": self._cast_int(row["Volume"]),
-                        "market_cap": self._cast_int(row["Market Cap"]),
+                        "volume": self._cast_int(row["Volume"])
                     }
                 )
+            
+            new_mcap = self._cast_int(ticker.info.get('marketCap'))
+            mcap_row = {"symbol": symbol,
+                        "date": data.index.max(),
+                        "market_cap": new_mcap}
 
-        return symbol_rows
+        return price_vol_rows, mcap_row
 
     def create_daily_data_records(self, last_daily_data={}):
         # last_daily_data should be a dict with symbol as key and dict with date, close, volume and market_cap as value
         # e.g. {'BBCA.JK': {'date': '2021-01-01', 'close': 100.0, 'volume': 20, 'market_cap':200000}, 'BBRI.JK': {'date': '2022-01-01', 'close': 200.0, , 'volume': 40, 'market_cap':100000}}
-        all_symbols_rows = []
+        price_vol_data = []
+        mcap_data = []
         retry_symbols = []
         unadded_symbols = []
 
         for symbol in self.symbols:
             last_daily_datum = last_daily_data.get(symbol)
             try:
-                symbol_rows = self._get_daily_data(symbol, last_daily_datum)
-                all_symbols_rows.extend(symbol_rows) if symbol_rows else None
+                price_vol_rows, mcap_row = self._get_daily_data(symbol, last_daily_datum)
+                price_vol_data.extend(price_vol_rows) if price_vol_rows else None
+                mcap_data.append(mcap_row) if mcap_row else None
             except Exception as e:
                 retry_symbols.append(symbol)
 
@@ -445,17 +449,22 @@ class YFDataUpdater:
             last_daily_datum = last_daily_data.get(symbol)
 
             try:
-                symbol_rows = self._get_daily_data(symbol, last_daily_datum)
-                all_symbols_rows.extend(symbol_rows) if symbol_rows else None
+                price_vol_rows, mcap_row = self._get_daily_data(symbol, last_daily_datum)
+                price_vol_data.extend(price_vol_rows) if price_vol_rows else None
+                mcap_data.append(mcap_row) if mcap_row else None
             except Exception as e:
                 unadded_symbols.append(symbol)
                 print(f"Failed to add {symbol} to daily data")
 
         dt_now = pd.Timestamp.now(tz="GMT").strftime("%Y-%m-%d %H:%M:%S")
-        all_symbols_rows = [
-            {"updated_on": dt_now, **record} for record in all_symbols_rows
+        price_vol_data = [
+            {"updated_on": dt_now, **record} for record in price_vol_data
         ]
-        self.new_records["daily_data"] = all_symbols_rows
+        mcap_data = [
+            {"updated_on": dt_now, **record} for record in mcap_data
+        ]
+        self.new_records["daily_data"]["price_vol"] = price_vol_data
+        self.new_records["daily_data"]["mcap"] = mcap_data
         self.unadded_data["daily_data"] = unadded_symbols
 
     def extract_symbols_from_db(self, supabase_client, batch_size=100, batch_num=1, filter_source=False):
@@ -562,21 +571,27 @@ class YFDataUpdater:
         def batch_upsert(
             target_table, records, on_conflict, batch_size=25, max_retry=3
         ):
-            for i in range(0, len(records), batch_size):
-                retry_count = 0
-                while retry_count < max_retry:
-                    try:
-                        supabase_client.table(target_table).upsert(
-                            records[i : i + batch_size],
-                            returning="minimal",
-                            on_conflict=on_conflict,
-                        ).execute()
-                        break
-                    except Exception as e:
-                        retry_count += 1
-                        if retry_count == max_retry:
-                            raise e
-                        time.sleep(3)
+            if not records:
+                print("No records to upsert")
+            else:
+                for i in range(0, len(records), batch_size):
+                    retry_count = 0
+                    while retry_count < max_retry:
+                        try:
+                            supabase_client.table(target_table).upsert(
+                                records[i : i + batch_size],
+                                returning="minimal",
+                                on_conflict=on_conflict,
+                            ).execute()
+                            break
+                        except Exception as e:
+                            retry_count += 1
+                            if retry_count == max_retry:
+                                raise e
+                            time.sleep(3)
+                            
+                print(f"Successfully upserted {len(records)} records to {target_table}")
+            
 
         try:
             supabase_client.table(target_table).select("*").limit(1).execute()
@@ -601,13 +616,17 @@ class YFDataUpdater:
                 for entry in response.data
             }
             self.create_daily_data_records(last_daily_data)
-            records = self.new_records["daily_data"]
+            price_vol_records = self.new_records["daily_data"]["price_vol"]
+            mcap_records = self.new_records["daily_data"]["mcap"]
             on_conflict = "symbol, date"
+            for records in [price_vol_records, mcap_records]:
+                batch_upsert(target_table, records, on_conflict, batch_size)
 
         elif "key_stats" in target_table:
             self.create_key_stats_records()
             records = self.new_records["key_stats"]
             on_conflict = "symbol"
+            batch_upsert(target_table, records, on_conflict, batch_size)
             
         elif "dividend" in target_table:
             response = supabase_client.rpc(
@@ -619,7 +638,7 @@ class YFDataUpdater:
             self.create_dividend_records(last_dividend_dates)
             records = self.new_records["dividend"]
             on_conflict = "symbol, date"
-
+            batch_upsert(target_table, records, on_conflict, batch_size)
             
         elif "financials" in target_table:
             if "quarterly" in target_table:
@@ -656,9 +675,5 @@ class YFDataUpdater:
                 records = self.convert_financials_currency(records, currency_dict)
             self.new_records["financials"][period] = records
             on_conflict = "symbol, date"
+            batch_upsert(target_table, records, on_conflict, batch_size)
 
-        if records:
-            batch_upsert(target_table, records, on_conflict)
-            print(f"Successfully upserted {len(records)} records to {target_table}")
-        else:
-            print("No new records to upsert")
