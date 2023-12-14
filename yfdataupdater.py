@@ -22,7 +22,6 @@ class LimiterSession(LimiterMixin, Session):
             bucket_class=MemoryQueueBucket,
         )
 
-
 class YFDataUpdater:
     def __init__(self, symbols=[]):
         self.symbols = symbols
@@ -136,43 +135,55 @@ class YFDataUpdater:
         self.new_records["dividend"] = records
 
     def create_key_stats_records(self):
+        companies_key_stats_dict = {}
+
         attribute = "info"
         companies_data_dict = self._get_companies_data(attribute)
+        
+        metric_dict = {
+            "forwardPE": "forward_pe",
+            "recommendationMean": "recommendation_mean",
+            "trailingPegRatio": "peg_ratio",
+            "fullTimeEmployees": "employee_num"
+        }
+        target_metrics = list(metric_dict.keys())
 
-        if companies_data_dict:
-            companies_key_stats_dict = {}
+        for symbol, data in companies_data_dict.items():
+            for metric in target_metrics:
+                if metric in data.keys():
+                    companies_key_stats_dict.setdefault(symbol, {})[metric] = data[
+                        metric
+                    ]
+                else:
+                    companies_key_stats_dict.setdefault(symbol, {})[metric] = None
+        
+        attribute = 'major_holders'
+        holders_breakdown_dict = self._get_companies_data(attribute)
+        
+        for symbol, raw_data in holders_breakdown_dict.items():
+            holders_breakdown = {}
+            if raw_data:
+                for n in raw_data[1]:
+                    key = raw_data[1][n]
+                    value = raw_data[0][n]
+                    if pd.isna(value):
+                        value = None
+                    holders_breakdown[key] = value
+            else:
+                holders_breakdown = None
+            companies_key_stats_dict[symbol]['holders_breakdown'] = holders_breakdown
+        
+        companies_key_stats_df = pd.DataFrame(companies_key_stats_dict).T
+        companies_key_stats_df = companies_key_stats_df.reset_index()
+        companies_key_stats_df = companies_key_stats_df.rename(
+            columns={"index": "symbol"}
+        )
+        companies_key_stats_df = companies_key_stats_df.rename(columns=metric_dict)
 
-            metric_dict = {
-                "forwardPE": "forward_pe",
-                "recommendationMean": "recommendation_mean",
-                "trailingPegRatio": "peg_ratio",
-            }
-            target_metrics = list(metric_dict.keys())
-
-            for symbol, data in companies_data_dict.items():
-                for metric in target_metrics:
-                    if metric in data.keys():
-                        companies_key_stats_dict.setdefault(symbol, {})[metric] = data[
-                            metric
-                        ]
-                    else:
-                        companies_key_stats_dict.setdefault(symbol, {})[metric] = None
-
-            companies_key_stats_df = pd.DataFrame(companies_key_stats_dict).T
-            companies_key_stats_df = companies_key_stats_df.reset_index()
-            companies_key_stats_df = companies_key_stats_df.rename(
-                columns={"index": "symbol"}
-            )
-            companies_key_stats_df = companies_key_stats_df.rename(columns=metric_dict)
-
-            # date_cols = []
-            # companies_key_stats_df[date_cols] = companies_key_stats_df[
-            #     date_cols
-            # ].applymap(self._convert_ts_to_date)
-
-            self.new_records["key_stats"] = self._convert_df_to_records(
-                companies_key_stats_df
-            )
+        int_cols = ["employee_num"]
+        self.new_records["key_stats"] = self._convert_df_to_records(
+            companies_key_stats_df, int_cols
+        )
 
     def _get_companies_financial_df(
         self,
@@ -186,52 +197,43 @@ class YFDataUpdater:
 
         companies_data_dict = self._get_companies_data(attribute)
 
-        if companies_data_dict:
-            companies_financial_dict = {}
-            for symbol, date_data in companies_data_dict.items():
-                for date, data in date_data.items():
-                    for metric in target_metrics:
-                        if metric in data.keys():
-                            companies_financial_dict.setdefault(symbol, {}).setdefault(
-                                date, {}
-                            )[metric] = data[metric]
-                        else:
-                            companies_financial_dict.setdefault(symbol, {}).setdefault(
-                                date, {}
-                            )[metric] = None
+        # if companies_data_dict:
+        companies_financial_dict = {}
+        for symbol, date_data in companies_data_dict.items():
+            for date, data in date_data.items():
+                for metric in target_metrics:
+                    if metric in data.keys():
+                        companies_financial_dict.setdefault(symbol, {}).setdefault(
+                            date, {}
+                        )[metric] = data[metric]
+                    else:
+                        companies_financial_dict.setdefault(symbol, {}).setdefault(
+                            date, {}
+                        )[metric] = None
 
-            if last_financial_dates:
-                filtered_companies_financial_dict = {}
-                for symbol, data in companies_financial_dict.items():
-                    for date in data.keys():
-                        if date > pd.to_datetime(
-                            last_financial_dates.get(symbol, "1900-01-01")
-                        ):
-                            filtered_companies_financial_dict.setdefault(symbol, {})[
-                                date
-                            ] = data[date]
-
-            else:
-                filtered_companies_financial_dict = companies_financial_dict
-
-        if filtered_companies_financial_dict:
-            companies_financial_df = pd.DataFrame.from_dict(
-                {
-                    (i, j): filtered_companies_financial_dict[i][j]
-                    for i in filtered_companies_financial_dict.keys()
-                    for j in filtered_companies_financial_dict[i].keys()
-                },
-                orient="index",
-            )
-            companies_financial_df = companies_financial_df.reset_index()
-            companies_financial_df = companies_financial_df.rename(
-                columns={"level_0": "symbol", "level_1": "date"}
-            )
+        if last_financial_dates:
+            filtered_companies_financial_dict = {}
+            for symbol, data in companies_financial_dict.items():
+                for date in data.keys():
+                    if date > pd.to_datetime(
+                        last_financial_dates.get(symbol, "1900-01-01")
+                    ):
+                        filtered_companies_financial_dict.setdefault(symbol, {})[
+                            date
+                        ] = data[date]
 
         else:
-            companies_financial_df = pd.DataFrame(
-                columns=["symbol", "date"] + target_metrics
-            )
+            filtered_companies_financial_dict = companies_financial_dict
+
+        companies_financial_df = pd.DataFrame(columns=["symbol", "date"] + target_metrics)
+        for symbol, dates_data in filtered_companies_financial_dict.items():
+            for date, metrics in dates_data.items():
+                row_data = [symbol, date] + [metrics.get(metric, None) for metric in target_metrics]
+                columns = ["symbol", "date"] + target_metrics
+                if companies_financial_df.empty:
+                    companies_financial_df = pd.DataFrame([row_data], columns=columns)
+                else:
+                    companies_financial_df = pd.concat([companies_financial_df, pd.DataFrame([row_data], columns=columns)], axis=0)
 
         return companies_financial_df
 
@@ -607,11 +609,6 @@ class YFDataUpdater:
 
         for record in financial_records:
             financial_currency = currency_dict.get(record["symbol"])
-            if not financial_currency:
-                financial_currency = self._request_yf_api(record["symbol"], "info").get(
-                    "financialCurrency"
-                )
-                currency_dict[record["symbol"]] = financial_currency
 
             if financial_currency == "USD":
                 conversion_date = datetime.strptime(record["date"], "%Y-%m-%d").date()
@@ -767,10 +764,23 @@ class YFDataUpdater:
             )
             wsj_formats = {row["symbol"]: row["wsj_format"] for row in response.data}
             yf_currency_map = {1: "IDR", 2: "USD"}
+            yf_currency_reverse_map = {v: k for k, v in yf_currency_map.items()}
             currency_dict = {
                 row["symbol"]: yf_currency_map.get(row["yf_currency"])
                 for row in response.data
             }
+            
+            for symbol in self.symbols:
+                if symbol not in currency_dict:
+                    financial_currency = self._request_yf_api(symbol, "info").get(
+                        "financialCurrency"
+                    )
+                    currency_dict[symbol] = financial_currency
+                    print("test")
+                    if financial_currency:
+                        currency_code = yf_currency_reverse_map.get(financial_currency, -1)
+                        supabase_client.table("idx_company_profile").update({'yf_currency':currency_code}).eq('symbol', symbol).execute()
+                        print(f"Updated yf_currency for {symbol} to {financial_currency} in idx_company_profile.")
 
             self.create_financials_records(
                 quarterly=quarterly,
