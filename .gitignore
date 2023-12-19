@@ -2,3 +2,4 @@
 newenv
 *.ipynb
 *.pyc
+/venv
