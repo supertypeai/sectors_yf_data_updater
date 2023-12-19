@@ -12,7 +12,7 @@ def main(annual=False):
     
     load_dotenv()
     url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_SECRET_KEY")
+    key = os.getenv("SUPABASE_KEY")
     supabase_client = create_client(url, key)
 
     updater = YFDataUpdater()
