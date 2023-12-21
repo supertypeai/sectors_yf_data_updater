@@ -3,3 +3,4 @@ newenv
 *.ipynb
 *.pyc
 data
+/venv
