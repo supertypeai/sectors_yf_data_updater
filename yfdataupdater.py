@@ -649,7 +649,7 @@ class YFDataUpdater:
                 new_records.append(record)
 
             else:
-                print(f"Unknown currency: {financial_currency} for {record['symbol']}")
+                print(f"Unknown currency: {financial_currency} for {record['symbol']}. Record will be removed.")
 
         return new_records
     
@@ -763,7 +763,7 @@ class YFDataUpdater:
                 .execute()
             )
             wsj_formats = {row["symbol"]: row["wsj_format"] for row in response.data}
-            yf_currency_map = {1: "IDR", 2: "USD"}
+            yf_currency_map = {1: "IDR", 2: "USD", -1: None, -2:'Unidentified'}
             yf_currency_reverse_map = {v: k for k, v in yf_currency_map.items()}
             currency_dict = {
                 row["symbol"]: yf_currency_map.get(row["yf_currency"])
@@ -771,14 +771,13 @@ class YFDataUpdater:
             }
             
             for symbol in self.symbols:
-                if symbol not in currency_dict:
+                if not currency_dict[symbol]:
                     financial_currency = self._request_yf_api(symbol, "info").get(
                         "financialCurrency"
                     )
                     currency_dict[symbol] = financial_currency
-                    print("test")
                     if financial_currency:
-                        currency_code = yf_currency_reverse_map.get(financial_currency, -1)
+                        currency_code = yf_currency_reverse_map.get(financial_currency, -2)
                         supabase_client.table("idx_company_profile").update({'yf_currency':currency_code}).eq('symbol', symbol).execute()
                         print(f"Updated yf_currency for {symbol} to {financial_currency} in idx_company_profile.")
 
@@ -790,7 +789,6 @@ class YFDataUpdater:
             records = self.new_records["financials"][period]
             if records:
                 records = self.convert_financials_currency(records, currency_dict)
-            self.new_records["financials"][period] = records
             on_conflict = "symbol, date"
             
         
