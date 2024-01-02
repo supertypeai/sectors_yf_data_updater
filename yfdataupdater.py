@@ -197,7 +197,6 @@ class YFDataUpdater:
 
         companies_data_dict = self._get_companies_data(attribute)
 
-        # if companies_data_dict:
         companies_financial_dict = {}
         for symbol, date_data in companies_data_dict.items():
             for date, data in date_data.items():

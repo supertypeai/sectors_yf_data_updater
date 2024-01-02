@@ -1,4 +1,4 @@
-name: Sectors YF Data Updater (Quarterly)
+name: Update idx_financials_annual with YFDataUpdater
 
 on:
   workflow_dispatch:
@@ -21,9 +21,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: execute scrape_financial_data py script 
+      - name: execute scrape_data.py script
         env:
             SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
             SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: python scrape_financial_data.py -q
-
+        run: python scrape_data.py -tt idx_financials_annual -bs -1 
+          

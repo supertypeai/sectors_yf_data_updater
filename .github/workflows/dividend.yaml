@@ -1,6 +1,8 @@
-name: Sectors YF Data Updater (Annualy)
+name: Update idx_dividend with YFDataUpdater
 
 on:
+  schedule:
+      - cron: '0 13 10 * *' # run at 10th day of every month at 20:00 GMT+7
   workflow_dispatch:
 
 jobs:
@@ -21,9 +23,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: execute scrape_financial_data py script 
+      - name: execute scrape_data.py script
         env:
             SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
             SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: python scrape_financial_data.py -a
+        run: python scrape_data.py -tt idx_dividend -bs -1 
           
