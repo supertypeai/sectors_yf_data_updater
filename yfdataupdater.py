@@ -141,9 +141,8 @@ class YFDataUpdater:
         companies_data_dict = self._get_companies_data(attribute)
         
         metric_dict = {
-            "forwardPE": "forward_pe",
+            "forwardEps": "forward_eps",
             "recommendationMean": "recommendation_mean",
-            "trailingPegRatio": "peg_ratio",
             "fullTimeEmployees": "employee_num"
         }
         target_metrics = list(metric_dict.keys())
@@ -214,8 +213,9 @@ class YFDataUpdater:
             filtered_companies_financial_dict = {}
             for symbol, data in companies_financial_dict.items():
                 for date in data.keys():
+                    last_financial_date = last_financial_dates.get(symbol) or '1900-01-01'
                     if date > pd.to_datetime(
-                        last_financial_dates.get(symbol, "1900-01-01")
+                        last_financial_date
                     ):
                         filtered_companies_financial_dict.setdefault(symbol, {})[
                             date
@@ -554,12 +554,13 @@ class YFDataUpdater:
         self.unadded_data["daily_data"] = unadded_symbols
 
     def extract_symbols_from_db(
-        self, supabase_client, batch_size=100, batch_num=1, filter_source=False
+        self, supabase_client, batch_size=100, batch_num=1
     ):
         """Extracts symbols from a table in the database
 
         Args:
             supabase_client (SupabaseClient): Supabase client
+            target_table (str): Target table name
             batch_size (int, optional): Number of symbols to extract. Defaults to 100. If batch_size is set to -1, all symbols will be extracted.
             batch_num (int, optional): Batch number. Defaults to 1.
 
@@ -567,20 +568,13 @@ class YFDataUpdater:
             Exception:  If there are no symbols to extract
         """
         response = (
-            supabase_client.table("idx_active_company_profile")
-            .select("symbol", "current_source")
-            .order("updated_on", desc=False)
-            .execute()
-        )
-        if filter_source:
-            current_source_map = {"YF": 1, "WSJ": 2, None: -1}
-            symbols = [
-                symbol["symbol"]
-                for symbol in response.data
-                if symbol["current_source"] == current_source_map["YF"]
-            ]
-        else:
-            symbols = [symbol["symbol"] for symbol in response.data]
+                supabase_client.table("idx_active_company_profile")
+                .select("symbol", "current_source")
+                .order("updated_on", desc=False)
+                .execute()
+            )
+        
+        symbols = [symbol["symbol"] for symbol in response.data]
 
         if batch_size == -1:
             batch_symbols = symbols
@@ -688,20 +682,14 @@ class YFDataUpdater:
             batch_num (int, optional): Batch number. Defaults to 1.
         """
 
-
         try:
             supabase_client.table(target_table).select("*").limit(1).execute()
         except Exception as e:
             print(f"Table {target_table} does not exist")
             return
 
-        if "financials" in target_table:
-            self.extract_symbols_from_db(
-                supabase_client, batch_size, batch_num, filter_source=True
-            )
-        else:
-            self.extract_symbols_from_db(
-                supabase_client, batch_size, batch_num, filter_source=False
+        self.extract_symbols_from_db(
+                supabase_client, batch_size, batch_num, 
             )
 
         if "daily_data" in target_table:
@@ -749,18 +737,23 @@ class YFDataUpdater:
             else:
                 raise Exception("Invalid table name")
 
+            
             response = supabase_client.rpc(
-                "get_last_date", params={"table_name": target_table}
+                "get_outdated_symbols", params={"table_name": "idx_financials_quarterly", "source":1}
             ).execute()
+            
             last_financial_dates = {
                 row["symbol"]: row["last_date"] for row in response.data
             }
+            
+            self.symbols = [s for s in self.symbols if s in last_financial_dates]
 
             response = (
                 supabase_client.table("idx_active_company_profile")
                 .select("symbol", "wsj_format", "yf_currency")
                 .execute()
             )
+            
             wsj_formats = {row["symbol"]: row["wsj_format"] for row in response.data}
             yf_currency_map = {1: "IDR", 2: "USD", -1: None, -2:'Unidentified'}
             yf_currency_reverse_map = {v: k for k, v in yf_currency_map.items()}
