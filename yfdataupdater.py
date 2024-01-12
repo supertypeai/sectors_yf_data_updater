@@ -247,7 +247,6 @@ class YFDataUpdater:
             "Net Income": "net_income",
             "EBIT": "ebit",
             "EBITDA": "ebitda",
-            "Diluted EPS": "diluted_eps",
             "Diluted Average Shares": "diluted_shares_outstanding",
             "Interest Expense Non Operating": "interest_expense_non_operating",
         }
@@ -618,7 +617,6 @@ class YFDataUpdater:
                         "net_income",
                         "ebit",
                         "ebitda",
-                        "diluted_eps",
                         "interest_expense_non_operating",
                         "cash_and_short_term_investments",
                         "total_assets",
