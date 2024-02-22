@@ -4,6 +4,7 @@ import json
 from dotenv import load_dotenv
 from supabase import create_client
 from yfdataupdater import YFDataUpdater
+import pandas as pd
 
 def main(target_table, batch_size, batch_number):
     load_dotenv()
@@ -17,7 +18,13 @@ def main(target_table, batch_size, batch_number):
     except Exception as e:
         print("An error occurred:", e)
         print("Saving data to CSV...")
-        with open("temp_data.json", "w") as f:
+        
+        dir = "temp_data"
+        if not os.path.exists(dir):
+            os.makedirs(dir)
+        
+        dt_now = pd.Timestamp.now(tz='Asia/Jakarta').strftime('%Y%m%d_%H%M%S')
+        with open(f"{dir}/{target_table}_batch_{batch_number}_{dt_now}.json", "w") as f:
             f.write(json.dumps(updater.new_records))
         
     return f"Successfully upserted {target_table} table. The following data weren't updated due to errors: {updater.unadded_data}"
