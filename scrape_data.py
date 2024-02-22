@@ -1,5 +1,6 @@
 import os
 import argparse
+import json
 from dotenv import load_dotenv
 from supabase import create_client
 from yfdataupdater import YFDataUpdater
@@ -9,11 +10,16 @@ def main(target_table, batch_size, batch_number):
     url = os.getenv("SUPABASE_URL")
     key = os.getenv("SUPABASE_KEY")
     supabase_client = create_client(url, key)
-
-    updater = YFDataUpdater()
-    # set batch_size to -1 to update all symbols
-    updater.upsert_data_to_db(supabase_client, target_table, batch_size, batch_number)
-
+    
+    try:
+        updater = YFDataUpdater()
+        updater.upsert_data_to_db(supabase_client, target_table, batch_size, batch_number)
+    except Exception as e:
+        print("An error occurred:", e)
+        print("Saving data to CSV...")
+        with open("temp_data.json", "w") as f:
+            f.write(json.dumps(updater.new_records))
+        
     return f"Successfully upserted {target_table} table. The following data weren't updated due to errors: {updater.unadded_data}"
 
 if __name__ == "__main__":
