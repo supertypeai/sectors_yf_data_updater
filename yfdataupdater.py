@@ -492,10 +492,13 @@ class YFDataUpdater:
 
         # new ticker
         else:
-            date_400d_ago = (datetime.now() - timedelta(days=400)).strftime("%Y-%m-%d")
-            data = ticker.history(start=date_400d_ago, auto_adjust=False)[
-                ["Close", "Volume"]
-            ]
+            date_750d_ago = (datetime.now() - timedelta(days=750)).strftime("%Y-%m-%d")
+            data = ticker.history(start=date_750d_ago, auto_adjust=False)[
+                            ["Close", "Volume"]
+                        ]
+            # data = ticker.history(start=date_750d_ago, auto_adjust=False)[
+            #     ["Close", "Volume"]
+            # ]
             
             if len(data) > 0:
                 data = process_data(data, ticker)
