@@ -33,7 +33,7 @@ class YFDataUpdater:
             "dividend": None,
         }
         self.unadded_data = {}
-        self._updated_ecb_rates = False
+        self._conversion_rates = {'USD_IDR':{}}
 
     def _cast_int(self, num):
         if pd.notna(num):
@@ -47,13 +47,12 @@ class YFDataUpdater:
             if temp_df[col].dtype == "datetime64[ns]":
                 temp_df[col] = temp_df[col].astype(str)
         temp_df["updated_on"] = pd.Timestamp.now(tz="GMT").strftime("%Y-%m-%d %H:%M:%S")
-        temp_df = temp_df.replace({np.nan: None})
+        temp_df = temp_df.replace({np.nan: None, 'NaT': None})
         records = temp_df.to_dict("records")
 
         for r in records:
-            for k, v in r.items():
-                if k in int_cols:
-                    r[k] = self._cast_int(v)
+            for col in int_cols:
+                r[col] = self._cast_int(r[col])
 
         return records
 
@@ -571,7 +570,7 @@ class YFDataUpdater:
         """
         response = (
                 supabase_client.table("idx_active_company_profile")
-                .select("symbol", "current_source")
+                .select("symbol")
                 .order("updated_on", desc=False)
                 .execute()
             )
@@ -591,14 +590,16 @@ class YFDataUpdater:
         self.symbols = batch_symbols
 
     def convert_financials_currency(self, financial_records, currency_dict):
-        def get_conversion_rate(from_currency, to_currency, conversion_date):
-            if self._updated_ecb_rates == False:
-                c = CurrencyConverter(ECB_URL, fallback_on_missing_rate=True)
-                self._updated_ecb_rates = True
-            else:
-                c = CurrencyConverter(fallback_on_missing_rate=True)
+        def get_conversion_rate(from_currency, to_currency, str_date):
+            rate = self._conversion_rates['USD_IDR'].get(str_date)
 
-            return c.convert(1, from_currency, to_currency, conversion_date)
+            if rate is None:
+                conversion_date = datetime.strptime(str_date, "%Y-%m-%d").date()
+                c = CurrencyConverter(ECB_URL, fallback_on_missing_rate=True)
+                rate = c.convert(1, from_currency, to_currency, conversion_date)
+                self._conversion_rates['USD_IDR'][str_date] = rate
+
+            return rate
 
         new_records = []
 
@@ -606,8 +607,7 @@ class YFDataUpdater:
             financial_currency = currency_dict.get(record["symbol"])
 
             if financial_currency == "USD":
-                conversion_date = datetime.strptime(record["date"], "%Y-%m-%d").date()
-                conversion_rate = get_conversion_rate("USD", "IDR", conversion_date)
+                conversion_rate = get_conversion_rate("USD", "IDR", record["date"])
 
                 new_record = record.copy()
                 for k, v in new_record.items():
