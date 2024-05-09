@@ -508,16 +508,16 @@ class YFDataUpdater:
                     {
                         "symbol": symbol,
                         "date": idx,
-                        "close": self._cast_int(row["Close"]),
-                        "volume": self._cast_int(row["Volume"]),
-                        "market_cap": self._cast_int(row["Market Cap"]),
-                        "mcap_method": self._cast_int(row["mcap_method"]),
+                        "close": (row["Close"]),
+                        "volume": (row["Volume"]),
+                        "market_cap": (row["Market Cap"]),
+                        "mcap_method": (row["mcap_method"]),
                     }
                 )
                 
         return symbol_rows
 
-    def create_daily_data_records(self, last_daily_data={}):
+    def create_daily_data_records(self, last_daily_data={}, int_close=False):
         # last_daily_data should be a dict with symbol as key and dict with date, close, volume and market_cap as value
         # e.g. {'BBCA.JK': {'date': '2021-01-01', 'close': 100.0, 'volume': 20, 'market_cap':200000}, 'BBRI.JK': {'date': '2022-01-01', 'close': 200.0, , 'volume': 40, 'market_cap':100000}}
         all_symbols_rows = []
@@ -551,9 +551,24 @@ class YFDataUpdater:
         all_symbols_rows = [
             {"updated_on": dt_now, **record} for record in all_symbols_rows
         ]
+        
+        int_cols = ['volume', 'market_cap', 'mcap_method']
+        
+        if int_close:
+            int_cols.append('close')
+        
+        for row in all_symbols_rows:
+            for col in int_cols:
+                row[col] = self._cast_int(row[col])
+            
+        
         self.new_records["daily_data"] = all_symbols_rows
         self.unadded_data["daily_data"] = unadded_symbols
 
+class IdxYFDataUpdater(YFDataUpdater):
+    def __init__(self):
+        super().__init__()
+        
     def extract_symbols_from_db(
         self, supabase_client, batch_size=100, batch_num=1
     ):
@@ -674,7 +689,7 @@ class YFDataUpdater:
     def upsert_data_to_db(
         self, supabase_client, target_table, batch_size=100, batch_num=1
     ):
-        """Upserts data to the target tabble in the database
+        """Upserts data to the target table in the database
 
         Args:
             supabase_client (SupabaseClient): Supabase client

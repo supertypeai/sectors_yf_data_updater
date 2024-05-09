@@ -5,7 +5,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from supabase import create_client
 
-from yfdataupdater import YFDataUpdater
+from yfdataupdater import IdxYFDataUpdater
 
 
 def main(request_dict):
@@ -22,7 +22,7 @@ def main(request_dict):
     key = os.getenv("SUPABASE_SECRET_KEY")
     supabase_client = create_client(url, key)
 
-    updater = YFDataUpdater()
+    updater = IdxYFDataUpdater()
     updater.upsert_data_to_db(supabase_client, target_table, batch_size, batch_num)
 
     return f"Successfully upserted {target_table} table. The following data weren't updated due to errors: {updater.unadded_data}"
