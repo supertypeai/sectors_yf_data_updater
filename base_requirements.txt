@@ -3,8 +3,6 @@ pandas==2.1.0
 requests==2.31.0
 requests-cache==1.1.0
 requests-ratelimiter==0.4.1
-yfinance==0.2.32
-CurrencyConverter==0.17.12
+yfinance==0.2.38
 pyrate-limiter==2.10.0
 python-dotenv==1.0.0
-supabase==2.0.3

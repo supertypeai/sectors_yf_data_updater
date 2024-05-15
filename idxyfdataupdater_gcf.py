@@ -7,6 +7,9 @@ from supabase import create_client
 
 from yfdataupdater import IdxYFDataUpdater
 
+# In GCF, the main function should accept a request object
+# def main(request):
+#     request_dict = request.get_json()
 
 def main(request_dict):
     target_table = request_dict.get("target_table", "")
@@ -15,7 +18,6 @@ def main(request_dict):
 
     if not target_table or not batch_num:
         return "Missing required parameters: target_table and batch_num", 400
-
     
     load_dotenv()
     url = os.getenv("SUPABASE_URL")
@@ -30,3 +32,6 @@ def main(request_dict):
 if __name__ == "__main__":
     # example request
     main({"target_table": "idx_daily_data", "batch_num": 1, "batch_size":-1})
+    
+    
+

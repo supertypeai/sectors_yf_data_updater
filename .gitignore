@@ -1,6 +1,5 @@
 .env
-newenv
 *.ipynb
 *.pyc
-data
-/venv
+*.venv
+__pycache__

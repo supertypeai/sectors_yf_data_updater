@@ -1,0 +1,2 @@
+neon-connector==0.0.2
+edgartools==1.4.1
