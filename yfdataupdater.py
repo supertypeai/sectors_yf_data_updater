@@ -156,14 +156,8 @@ class YFDataUpdater:
         holders_breakdown_dict = self._get_companies_data(attribute)
         
         for symbol, raw_data in holders_breakdown_dict.items():
-            holders_breakdown = {}
             if raw_data:
-                for n in raw_data[1]:
-                    key = raw_data[1][n]
-                    value = raw_data[0][n]
-                    if pd.isna(value):
-                        value = None
-                    holders_breakdown[key] = value
+                holders_breakdown = raw_data['Value']
             else:
                 holders_breakdown = None
             companies_key_stats_dict[symbol]['holders_breakdown'] = holders_breakdown

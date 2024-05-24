@@ -1,5 +1,8 @@
+import json
+import time
+
 from yfdataupdater import YFDataUpdater
-import time 
+
 
 class USYFDataUpdater(YFDataUpdater):
     def __init__(self):
@@ -99,22 +102,41 @@ class USYFDataUpdater(YFDataUpdater):
             on_conflict = ['stock_id', 'date']
             
 
-        # elif "key_stats" in target_table:
-        #     self.create_key_stats_records()
-        #     records = self.new_records["key_stats"]
-        #     on_conflict = "symbol"
+        elif "key_stats" in target_table:
+            self.create_key_stats_records()
+            records = self.new_records["key_stats"]
+            
+            for rec in records:
+                rec['stock_id'] = self.symbol_id_map[rec['symbol']]
+                del rec['symbol']
+                rec['holders_breakdown'] = json.dumps(rec['holders_breakdown'])
+                
+            on_conflict = ["stock_id"]
             
 
-        # elif "dividend" in target_table:
-        #     response = neon_connector.rpc(
-        #         "get_last_date", params={"table_name": target_table}
-        #     ).execute()
-        #     last_dividend_dates = {
-        #         row["symbol"]: row["last_date"] for row in response.data
-        #     }
-        #     self.create_dividend_records(last_dividend_dates)
-        #     records = self.new_records["dividend"]
-        #     on_conflict = "symbol, date"
+        elif "dividend" in target_table:
+            response = neon_connector.select_query("SELECT * FROM get_last_date('dividend')")
+            
+            last_dividend_dates_temp = {
+                row["stock_id"]: row["last_date"].strftime("%Y-%m-%d") for row in response
+            }
+            id_symbol_map = {v: k for k, v in self.symbol_id_map.items()}
+            
+            last_dividend_dates = {}
+            for stock_id in last_dividend_dates_temp:
+                symbol = id_symbol_map[stock_id]
+                last_dividend_dates[symbol] = last_dividend_dates_temp[stock_id]
+
+            del last_dividend_dates_temp
+            
+            self.create_dividend_records(last_dividend_dates)
+            records = self.new_records["dividend"]
+            
+            for rec in records:
+                rec['stock_id'] = self.symbol_id_map[rec['symbol']]
+                del rec['symbol']
+                
+            on_conflict = ['stock_id', 'date']
             
 
         # elif "financials" in target_table:
