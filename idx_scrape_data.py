@@ -3,7 +3,7 @@ import argparse
 import json
 from dotenv import load_dotenv
 from supabase import create_client
-from yfdataupdater import YFDataUpdater
+from idxyfdataupdater import IdxYFDataUpdater
 import pandas as pd
 
 def main(target_table, batch_size, batch_number):
@@ -13,7 +13,7 @@ def main(target_table, batch_size, batch_number):
     supabase_client = create_client(url, key)
     
     try:
-        updater = YFDataUpdater()
+        updater = IdxYFDataUpdater()
         updater.upsert_data_to_db(supabase_client, target_table, batch_size, batch_number)
     except Exception as e:
         print("An error occurred:", e)
