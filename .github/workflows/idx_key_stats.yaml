@@ -1,4 +1,4 @@
-name: Update idx_key_stats with YFDataUpdater
+name: Update idx_key_stats with IdxYFDataUpdater
 
 on:
   schedule:

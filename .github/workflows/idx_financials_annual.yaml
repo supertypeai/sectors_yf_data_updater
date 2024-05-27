@@ -1,4 +1,4 @@
-name: Update idx_financials_annual with YFDataUpdater
+name: Update idx_financials_annual with IdxYFDataUpdater
 
 on:
   workflow_dispatch:

@@ -2,24 +2,23 @@ import os
 import argparse
 import json
 from dotenv import load_dotenv
-from supabase import create_client
-from idxyfdataupdater import IdxYFDataUpdater
+from neon_connector.neon_connector import NeonConnector
+from usyfdataupdater import USYFDataUpdater
 import pandas as pd
 
 def main(target_table, batch_size, batch_number):
     load_dotenv()
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_KEY")
-    supabase_client = create_client(url, key)
+    connection_string = os.getenv('NEON_DATABASE_URL')
+    neon_connector = NeonConnector(connection_string)
     
     try:
-        updater = IdxYFDataUpdater()
-        updater.upsert_data_to_db(supabase_client, target_table, batch_size, batch_number)
+        updater = USYFDataUpdater()
+        updater.upsert_data_to_db(neon_connector, target_table, batch_size, batch_number)
     except Exception as e:
         print("An error occurred:", e)
         print("Saving data to CSV...")
         
-        dir = "idx_temp_data"
+        dir = "us_temp_data"
         if not os.path.exists(dir):
             os.makedirs(dir)
         
