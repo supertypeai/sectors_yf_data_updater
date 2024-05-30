@@ -27,7 +27,10 @@ def main():
         upsert_df['updated_on'] = pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')
         recs = upsert_df.to_dict(orient='records')
         supabase_client.table("idx_ipo_perf").upsert(recs, returning="minimal").execute()
-
+        
+    else:
+        print('No new or updated records to upsert.')
+        
 if __name__ == "__main__":
     main()
     
