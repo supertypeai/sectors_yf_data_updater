@@ -207,28 +207,18 @@ class IdxYFDataUpdater(YFDataUpdater):
 
             response = (
                 supabase_client.table("idx_active_company_profile")
-                .select("symbol", "wsj_format", "yf_currency")
+                .select("symbol", "wsj_format")
                 .execute()
             )
             
             wsj_formats = {row["symbol"]: row["wsj_format"] for row in response.data}
-            yf_currency_map = {1: "IDR", 2: "USD", -1: None, -2:'Unidentified'}
-            yf_currency_reverse_map = {v: k for k, v in yf_currency_map.items()}
-            currency_dict = {
-                row["symbol"]: yf_currency_map.get(row["yf_currency"])
-                for row in response.data
-            }
             
+            currency_dict = {}
             for symbol in self.symbols:
-                if not currency_dict[symbol]:
-                    financial_currency = self._request_yf_api(symbol, "info").get(
-                        "financialCurrency"
-                    )
-                    currency_dict[symbol] = financial_currency
-                    if financial_currency:
-                        currency_code = yf_currency_reverse_map.get(financial_currency, -2)
-                        supabase_client.table("idx_company_profile").update({'yf_currency':currency_code}).eq('symbol', symbol).execute()
-                        print(f"Updated yf_currency for {symbol} to {financial_currency} in idx_company_profile.")
+                financial_currency = self._request_yf_api(symbol, "info").get(
+                    "financialCurrency"
+                )
+                currency_dict[symbol] = financial_currency
 
             self.create_financials_records(
                 quarterly=quarterly,
