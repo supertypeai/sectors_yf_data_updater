@@ -1,0 +1,31 @@
+name: Update idx_ipo_perf
+
+on:
+  schedule:
+    - cron : '0 13 * * *' # run at 20:00 GMT+7
+  workflow_dispatch:
+
+jobs:
+  trigger_workflow:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout repo content
+        uses: actions/checkout@v2 # checkout the repository content to github runner
+
+      - name: setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9' # install the python version needed
+          
+      - name: install python packages
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r base_requirements.txt
+          pip install -r idx_requirements.txt
+
+      - name: execute ipo_price_performance.py script
+        env:
+            SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+            SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python ipo_price_performance.py
+    
