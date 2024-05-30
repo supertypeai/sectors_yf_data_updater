@@ -1,7 +1,5 @@
 import yfinance as yf
 import pandas as pd
-import os
-from supabase import create_client
 
 def get_price_on(df, target_date):
     df['date_diff'] = (df['Date'] - target_date).abs()
@@ -121,26 +119,3 @@ def calc_old_symbols_perf(ipo_perf_table, listing_dates, upsert_df):
         
     return upsert_df
 
-def main():
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_KEY")
-    supabase_client = create_client(url, key)
-
-    response = supabase_client.table("new_company_table").select("*").execute()
-    new_company_table = pd.DataFrame(response.data)
-    new_company_table['listing_date'] = pd.to_datetime(new_company_table['listing_date'])
-
-    response = supabase_client.table("ipo_perf_table").select("*").execute()
-    ipo_perf_table = pd.DataFrame(response.data)
-
-    response = supabase_client.table("idx_company_profile").select("symbol, listing_date").execute()
-    listing_dates = {row['symbol']: row['listing_date'] for row in response.data}
-
-    upsert_df = pd.DataFrame(columns=['symbol', 'chg_7d', 'chg_30d', 'chg_90d', 'chg_365d'])
-
-    upsert_df = calc_new_symbols_perf(new_company_table, ipo_perf_table, upsert_df)
-    upsert_df = calc_old_symbols_perf(ipo_perf_table, listing_dates, upsert_df)
-
-
-if __name__ == "__main__":
-    main()
