@@ -27,5 +27,5 @@ jobs:
         env:
             SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
             SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: python ipo_price_performance.py
+        run: python ipo_price_perf.py
     
