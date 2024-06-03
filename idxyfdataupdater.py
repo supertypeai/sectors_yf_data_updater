@@ -193,11 +193,11 @@ class IdxYFDataUpdater(YFDataUpdater):
                 period = "annual"
             else:
                 raise Exception("Invalid table name")
-
-            
+    
             response = supabase_client.rpc(
-                "get_outdated_symbols", params={"table_name": "idx_financials_quarterly", "source":1}
+                "get_outdated_symbols", params={"table_name": target_table, "source":1}
             ).execute()
+                    
             
             last_financial_dates = {
                 row["symbol"]: row["last_date"] for row in response.data
