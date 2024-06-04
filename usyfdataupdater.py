@@ -139,61 +139,46 @@ class USYFDataUpdater(YFDataUpdater):
             on_conflict = ['stock_id', 'date']
             
 
-        # elif "financials" in target_table:
-        #     if "quarterly" in target_table:
-        #         quarterly = True
-        #         period = "quarterly"
-        #     elif "annual" in target_table:
-        #         quarterly = False
-        #         period = "annual"
-        #     else:
-        #         raise Exception("Invalid table name")
+        elif "financials" in target_table:
+            if "quarterly" in target_table:
+                quarterly = True
+                period = "quarterly"
+            elif "annual" in target_table:
+                quarterly = False
+                period = "annual"
+            else:
+                raise Exception("Invalid table name")
 
             
-        #     response = neon_connector.rpc(
-        #         "get_outdated_symbols", params={"table_name": "idx_financials_quarterly", "source":1}
-        #     ).execute()
+            response = neon_connector.select_query(f"SELECT * FROM get_outdated_symbols('{target_table}', 1)")
             
-        #     last_financial_dates = {
-        #         row["symbol"]: row["last_date"] for row in response.data
-        #     }
+            last_financial_dates = {
+                row["symbol"]: row["last_date"] for row in response
+            }
             
-        #     self.symbols = [s for s in self.symbols if s in last_financial_dates]
+            self.symbols = [s for s in self.symbols if s in last_financial_dates]
 
-        #     response = (
-        #         neon_connector.table("idx_active_company_profile")
-        #         .select("symbol", "wsj_format", "yf_currency")
-        #         .execute()
-        #     )
+            # response = (
+            #     supabase_client.table("idx_active_company_profile")
+            #     .select("symbol", "wsj_format")
+            #     .execute()
+            # )
             
-        #     wsj_formats = {row["symbol"]: row["wsj_format"] for row in response.data}
-        #     yf_currency_map = {1: "IDR", 2: "USD", -1: None, -2:'Unidentified'}
-        #     yf_currency_reverse_map = {v: k for k, v in yf_currency_map.items()}
-        #     currency_dict = {
-        #         row["symbol"]: yf_currency_map.get(row["yf_currency"])
-        #         for row in response.data
-        #     }
+            # hard code wsj_format for now
+            wsj_formats = {symbol: 1 for symbol in self.symbols}
             
-        #     for symbol in self.symbols:
-        #         if not currency_dict[symbol]:
-        #             financial_currency = self._request_yf_api(symbol, "info").get(
-        #                 "financialCurrency"
-        #             )
-        #             currency_dict[symbol] = financial_currency
-        #             if financial_currency:
-        #                 currency_code = yf_currency_reverse_map.get(financial_currency, -2)
-        #                 neon_connector.table("idx_company_profile").update({'yf_currency':currency_code}).eq('symbol', symbol).execute()
-        #                 print(f"Updated yf_currency for {symbol} to {financial_currency} in idx_company_profile.")
-
-        #     self.create_financials_records(
-        #         quarterly=quarterly,
-        #         last_financial_dates=last_financial_dates,
-        #         wsj_formats=wsj_formats,
-        #     )
-        #     records = self.new_records["financials"][period]
-        #     if records:
-        #         records = self.convert_financials_currency(records, currency_dict)
-        #     on_conflict = "symbol, date"
+            self.create_financials_records(
+                quarterly=quarterly,
+                last_financial_dates=last_financial_dates,
+                wsj_formats=wsj_formats,
+            )
+            records = self.new_records["financials"][period]
+            
+            for rec in records:
+                rec['stock_id'] = self.symbol_id_map[rec['symbol']]
+                del rec['symbol']
+                
+            on_conflict = ["stock_id", "date"]
             
         
         self._batch_upsert(neon_connector, target_table, records, on_conflict)
