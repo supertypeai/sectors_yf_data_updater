@@ -1,6 +1,8 @@
 name: Update idx_financials_annual with IdxYFDataUpdater
 
 on:
+  schedule:
+      - cron: '0 1 * * 6' # run at 10th day of every saturday at 0:800 GMT+7
   workflow_dispatch:
 
 jobs:

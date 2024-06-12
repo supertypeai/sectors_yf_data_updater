@@ -1,7 +1,9 @@
 name: Update US financials_quarterly with USYFDataUpdater
 
 on:
-    workflow_dispatch:
+  schedule:
+      - cron: '0 1 * * 6' # run at 10th day of every saturday at 0:800 GMT+7
+  workflow_dispatch:
 
 jobs:
     trigger_workflow:
