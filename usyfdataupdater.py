@@ -149,7 +149,7 @@ class USYFDataUpdater(YFDataUpdater):
             else:
                 raise Exception("Invalid table name")
 
-            
+            # get_outdated_symbols function has two parameters: table_name and source (1 indicates YF API)
             response = neon_connector.select_query(f"SELECT * FROM get_outdated_symbols('{target_table}', 1)")
             
             last_financial_dates = {
