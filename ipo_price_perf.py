@@ -2,11 +2,16 @@ import yfinance as yf
 import pandas as pd
 
 def get_price_on(df, target_date):
-    df['date_diff'] = (df['Date'] - target_date).abs()
-    closest_idx = df['date_diff'].idxmin()
-    df.drop(columns='date_diff', inplace=True)
-    return df.loc[closest_idx, 'Close']
-
+    df_before = df[df['Date'] < target_date]
+    
+    if df_before.empty:
+        raise ValueError("No dates before the target date")
+    
+    df_before['date_diff'] = (target_date - df_before['Date']).dt.days
+    closest_idx = df_before['date_diff'].idxmin()
+    df_before.drop(columns='date_diff', inplace=True)
+    
+    return df_before.loc[closest_idx, 'Close']
 
 def get_pct_chg(start_price, end_price):
     return (end_price - start_price) / start_price
