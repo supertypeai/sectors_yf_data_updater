@@ -57,10 +57,13 @@ def calc_new_symbol_perf(symbol, ipo_price, listing_date, n_days_after):
     return performance
 
 
-def calc_new_symbols_perf(new_company_table: pd.DataFrame, complete_ipo_perf_table: pd.DataFrame):
+def calc_new_symbols_perf(new_company_table: pd.DataFrame, complete_ipo_perf_table: pd.DataFrame) -> pd.DataFrame:
     n_days_after = [7, 30, 90, 365]
     # remove ipo_perf records that is already complete; no need to be updated
-    new_company_table = new_company_table[~new_company_table['symbol'].isin(complete_ipo_perf_table.symbol)]
+    try:
+        new_company_table = new_company_table[~new_company_table['symbol'].isin(complete_ipo_perf_table.symbol)]
+    except AttributeError as e:
+        print(f'ipo_perf table dataframe is probably empty, skipping removal of symbols: {e}')
 
     def process_company_row(x):
         perf = calc_new_symbol_perf(x.symbol, x.ipo_price, x.listing_date, n_days_after)

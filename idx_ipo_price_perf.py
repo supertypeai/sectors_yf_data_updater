@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import os
 
@@ -53,6 +54,8 @@ def main():
 
     upsert_df = calc_new_symbols_perf(new_company_table, complete_ipo_perf_table)
     upsert_df.dropna(subset=['symbol'], inplace=True)
+    # replace NaN with None to work with JSON for database upsert
+    upsert_df.replace({np.nan: None}, inplace=True)
 
     # upsert the new data to database
     if not upsert_df.empty:
