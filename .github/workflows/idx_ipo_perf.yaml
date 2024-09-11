@@ -2,7 +2,7 @@ name: Update idx_ipo_perf
 
 on:
   schedule:
-    - cron : '0 13 * * *' # run at 20:00 GMT+7
+    - cron : '0 13 * * 6' # run at 20:00 GMT+7
   workflow_dispatch:
 
 jobs:
