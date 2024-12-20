@@ -66,7 +66,7 @@ def calc_new_symbols_perf(new_company_table: pd.DataFrame, complete_ipo_perf_tab
         print(f'ipo_perf table dataframe is probably empty, skipping removal of symbols: {e}')
 
     def process_company_row(x):
-        perf = calc_new_symbol_perf(x.symbol, x.ipo_price, x.listing_date, n_days_after)
+        perf = calc_new_symbol_perf(x.symbol, x.ipo_price / x.cumulative_split_ratio, x.listing_date, n_days_after)
         return pd.Series(perf)
 
     return new_company_table.apply(process_company_row, axis=1)
