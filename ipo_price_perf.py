@@ -58,7 +58,7 @@ def calc_new_symbol_perf(symbol, ipo_price, listing_date, n_days_after):
 
 
 def calc_new_symbols_perf(new_company_table: pd.DataFrame, complete_ipo_perf_table: pd.DataFrame) -> pd.DataFrame:
-    n_days_after = [7, 30, 90, 365]
+    n_days_after = [1, 7, 30, 90, 365]
     # remove ipo_perf records that is already complete; no need to be updated
     try:
         new_company_table = new_company_table[~new_company_table['symbol'].isin(complete_ipo_perf_table.symbol)]

@@ -20,6 +20,7 @@ def main():
                 .select('symbol, listing_date, ipo_price')
                 .gt('listing_date', date_2_y_ago.date())
                 .is_('delisting_date', 'null')
+                # .limit(10)
                 .execute())
 
     new_company_table = pd.DataFrame(response.data)
@@ -45,6 +46,7 @@ def main():
     response = (supabase_client.table('idx_ipo_perf')
                 .select('symbol')
                 .gt('updated_on', date_2_y_ago.date())
+                .not_.is_('chg_1d', 'null')
                 .not_.is_('chg_7d', 'null')
                 .not_.is_('chg_30d', 'null')
                 .not_.is_('chg_90d', 'null')
