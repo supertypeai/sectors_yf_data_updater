@@ -138,7 +138,6 @@ class YFDataUpdater:
         
         metric_dict = {
             "forwardEps": "forward_eps",
-            "recommendationMean": "recommendation_mean",
             "fullTimeEmployees": "employee_num"
         }
         target_metrics = list(metric_dict.keys())
