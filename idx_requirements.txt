@@ -1,3 +1,2 @@
 CurrencyConverter==0.17.12
 supabase==2.0.3
-websockets==15.0.1
