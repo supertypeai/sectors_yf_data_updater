@@ -3,7 +3,7 @@ pandas==2.2.1
 requests==2.31.0
 requests-cache==1.1.0
 requests-ratelimiter==0.4.1
-yfinance==0.2.58
+yfinance==0.2.59
 pyrate-limiter==2.10.0
 python-dotenv==1.0.0
 websockets==15.0.1
