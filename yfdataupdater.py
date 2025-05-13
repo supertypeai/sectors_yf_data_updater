@@ -54,7 +54,7 @@ class YFDataUpdater:
         return records
 
     def _request_yf_api(self, symbol, attribute):
-        ticker = yf.Ticker(symbol, session=self._session)
+        ticker = yf.Ticker(symbol)#, session=self._session)
         data_dict = getattr(ticker, attribute)
         if type(data_dict) in [pd.DataFrame, pd.Series]:
             data_dict = data_dict.to_dict()
@@ -84,7 +84,7 @@ class YFDataUpdater:
         records = []
         for symbol, data in companies_data_dict.items():
             if data:
-                ticker = yf.Ticker(symbol, session=self._session)
+                ticker = yf.Ticker(symbol)#, session=self._session)
                 five_yrs_ago = (
                     (pd.Timestamp.now() - pd.DateOffset(years=5))
                     .replace(month=1, day=1)
@@ -448,7 +448,7 @@ class YFDataUpdater:
         # mcap_row = None
         symbol_rows = []
         
-        ticker = yf.Ticker(symbol, session=self._session)
+        ticker = yf.Ticker(symbol)#, session=self._session)
 
         if last_daily_datum:
             last_date, last_close, last_volume, last_mcap, last_mcap_method = (
