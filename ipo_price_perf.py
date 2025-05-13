@@ -2,7 +2,7 @@ import requests_cache
 import yfinance as yf
 import pandas as pd
 
-YF_SESSION = requests_cache.CachedSession('yfinance.cache')
+#YF_SESSION = requests_cache.CachedSession('yfinance.cache')
 
 
 def get_price_on(df, target_date):
@@ -23,7 +23,7 @@ def get_pct_chg(start_price, end_price):
 
 
 def calc_new_symbol_perf(symbol, ipo_price, listing_date, n_days_after):
-    ticker = yf.Ticker(symbol, session=YF_SESSION)
+    ticker = yf.Ticker(symbol)#, session=YF_SESSION)
 
     data = ticker.history(start=listing_date, auto_adjust=False)
     data = data.reset_index()
