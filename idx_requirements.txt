@@ -1,2 +1,2 @@
 CurrencyConverter==0.17.12
-supabase==2.0.3
+supabase==2.10.0
