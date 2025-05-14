@@ -28,7 +28,7 @@ end_date = end_date.strftime("%Y-%m-%d")
 # Scrape daily data
 df = pd.DataFrame()
 
-for i in ['BKSL.JK','UNVR.JK]: 
+for i in ['BKSL.JK','UNVR.JK']: 
 #active_stock.symbol.unique():
     ticker = yf.Ticker(i)
     a = ticker.history(start=start_date, end=end_date).reset_index()[["Date","Close",'Volume']]
