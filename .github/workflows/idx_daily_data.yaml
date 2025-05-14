@@ -24,9 +24,9 @@ jobs:
           pip install -r base_requirements.txt
           pip install -r idx_requirements.txt
 
-      - name: execute idx_scrape_data.py script
+      - name: execute idx_daily_data_scraper.py script
         env:
             SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
             SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: python idx_daily_data_scrape.py
+        run: python idx_daily_data_scraper.py
           
