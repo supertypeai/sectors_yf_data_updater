@@ -375,6 +375,9 @@ class YFDataUpdater:
                 "interest_expense_non_operating",
                 "operating_income",
                 "source",
+                'inventories',
+                'retained_earnings',
+                'prepaid_assets'
             ]
 
             self.new_records["financials"][period] = self._convert_df_to_records(
