@@ -259,6 +259,9 @@ class YFDataUpdater:
             "Total Debt": "total_debt",
             "Stockholders Equity": "stockholders_equity",
             "Total Equity Gross Minority Interest": "total_equity",
+            "Inventory": 'inventories',
+            "Retained Earnings": 'retained_earnings',
+            "Prepaid Assets": 'prepaid_assets'
         }
         target_metrics = list(metrics_dict.keys())
         balance_sheet_df = self._get_companies_financial_df(
