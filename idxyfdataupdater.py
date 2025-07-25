@@ -9,10 +9,8 @@ from yfdataupdater import YFDataUpdater
 class IdxYFDataUpdater(YFDataUpdater):
     def __init__(self):
         super().__init__()
-        
-    def extract_symbols_from_db(
-        self, supabase_client, batch_size=100, batch_num=1
-    ):
+
+    def extract_symbols_from_db(self, supabase_client, batch_size=100, batch_num=1):
         """Extracts symbols from a table in the database
 
         Args:
@@ -25,12 +23,12 @@ class IdxYFDataUpdater(YFDataUpdater):
             Exception:  If there are no symbols to extract
         """
         response = (
-                supabase_client.table("idx_active_company_profile")
-                .select("symbol")
-                .order("updated_on", desc=False)
-                .execute()
-            )
-        
+            supabase_client.table("idx_active_company_profile")
+            .select("symbol")
+            .order("updated_on", desc=False)
+            .execute()
+        )
+
         symbols = [symbol["symbol"] for symbol in response.data]
 
         if batch_size == -1:
@@ -47,13 +45,13 @@ class IdxYFDataUpdater(YFDataUpdater):
 
     def convert_financials_currency(self, financial_records, currency_dict):
         def get_conversion_rate(from_currency, to_currency, str_date):
-            rate = self._conversion_rates['USD_IDR'].get(str_date)
+            rate = self._conversion_rates["USD_IDR"].get(str_date)
 
             if rate is None:
                 conversion_date = datetime.strptime(str_date, "%Y-%m-%d").date()
                 c = CurrencyConverter(ECB_URL, fallback_on_missing_rate=True)
                 rate = c.convert(1, from_currency, to_currency, conversion_date)
-                self._conversion_rates['USD_IDR'][str_date] = rate
+                self._conversion_rates["USD_IDR"][str_date] = rate
 
             return rate
 
@@ -99,33 +97,41 @@ class IdxYFDataUpdater(YFDataUpdater):
                 new_records.append(record)
 
             else:
-                print(f"Unknown currency: {financial_currency} for {record['symbol']}. Record will be removed.")
+                print(
+                    f"Unknown currency: {financial_currency} for {record['symbol']}. Record will be removed."
+                )
 
         return new_records
-    
-    def _batch_upsert(
-            self, supabase_client, target_table, records, on_conflict, batch_size=25, max_retry=3
-        ):
-            if not records:
-                print("No records to upsert")
-            else:
-                for i in range(0, len(records), batch_size):
-                    retry_count = 0
-                    while retry_count < max_retry:
-                        try:
-                            supabase_client.table(target_table).upsert(
-                                records[i : i + batch_size],
-                                returning="minimal",
-                                on_conflict=on_conflict,
-                            ).execute()
-                            break
-                        except Exception as e:
-                            retry_count += 1
-                            if retry_count == max_retry:
-                                raise e
-                            time.sleep(3)
 
-                print(f"Successfully upserted {len(records)} records to {target_table}")
+    def _batch_upsert(
+        self,
+        supabase_client,
+        target_table,
+        records,
+        on_conflict,
+        batch_size=25,
+        max_retry=3,
+    ):
+        if not records:
+            print("No records to upsert")
+        else:
+            for i in range(0, len(records), batch_size):
+                retry_count = 0
+                while retry_count < max_retry:
+                    try:
+                        supabase_client.table(target_table).upsert(
+                            records[i : i + batch_size],
+                            returning="minimal",
+                            on_conflict=on_conflict,
+                        ).execute()
+                        break
+                    except Exception as e:
+                        retry_count += 1
+                        if retry_count == max_retry:
+                            raise e
+                        time.sleep(3)
+
+            print(f"Successfully upserted {len(records)} records to {target_table}")
 
     def upsert_data_to_db(
         self, supabase_client, target_table, batch_size=100, batch_num=1
@@ -146,8 +152,10 @@ class IdxYFDataUpdater(YFDataUpdater):
             return
 
         self.extract_symbols_from_db(
-                supabase_client, batch_size, batch_num, 
-            )
+            supabase_client,
+            batch_size,
+            batch_num,
+        )
 
         if "daily_data" in target_table:
             response = supabase_client.rpc("get_last_daily_data", params=None).execute()
@@ -164,13 +172,11 @@ class IdxYFDataUpdater(YFDataUpdater):
             self.create_daily_data_records(last_daily_data, int_close=True)
             records = self.new_records["daily_data"]
             on_conflict = "symbol, date"
-            
 
         elif "key_stats" in target_table:
             self.create_key_stats_records()
             records = self.new_records["key_stats"]
             on_conflict = "symbol"
-            
 
         elif "dividend" in target_table:
             response = supabase_client.rpc(
@@ -182,7 +188,6 @@ class IdxYFDataUpdater(YFDataUpdater):
             self.create_dividend_records(last_dividend_dates)
             records = self.new_records["dividend"]
             on_conflict = "symbol, date"
-            
 
         elif "financials" in target_table:
             if "quarterly" in target_table:
@@ -193,26 +198,29 @@ class IdxYFDataUpdater(YFDataUpdater):
                 period = "annual"
             else:
                 raise Exception("Invalid table name")
-    
+
+            # response = supabase_client.rpc(
+            #     "get_outdated_symbols", params={"table_name": target_table, "source":1}
+            # ).execute()
+
             response = supabase_client.rpc(
-                "get_outdated_symbols", params={"table_name": target_table, "source":1}
+                "get_last_date", params={"table_name": target_table}
             ).execute()
-                    
-            
+
             last_financial_dates = {
                 row["symbol"]: row["last_date"] for row in response.data
             }
-            
-            self.symbols = [s for s in self.symbols if s in last_financial_dates]
+
+            # self.symbols = [s for s in self.symbols if s in last_financial_dates]
 
             response = (
                 supabase_client.table("idx_active_company_profile")
                 .select("symbol", "wsj_format")
                 .execute()
             )
-            
+
             wsj_formats = {row["symbol"]: row["wsj_format"] for row in response.data}
-            
+
             currency_dict = {}
             for symbol in self.symbols:
                 financial_currency = self._request_yf_api(symbol, "info").get(
@@ -229,7 +237,5 @@ class IdxYFDataUpdater(YFDataUpdater):
             if records:
                 records = self.convert_financials_currency(records, currency_dict)
             on_conflict = "symbol, date"
-            
-        
-        self._batch_upsert(supabase_client, target_table, records, on_conflict)
 
+        self._batch_upsert(supabase_client, target_table, records, on_conflict)
