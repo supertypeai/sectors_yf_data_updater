@@ -19,6 +19,7 @@ class LimiterSession(LimiterMixin, Session):
             bucket_class=MemoryQueueBucket,
         )
 
+
 class YFDataUpdater:
     def __init__(self, symbols=[]):
         self.symbols = symbols
@@ -30,7 +31,7 @@ class YFDataUpdater:
             "dividend": None,
         }
         self.unadded_data = {}
-        self._conversion_rates = {'USD_IDR':{}}
+        self._conversion_rates = {"USD_IDR": {}}
 
     def _cast_int(self, num):
         if pd.notna(num):
@@ -44,7 +45,7 @@ class YFDataUpdater:
             if temp_df[col].dtype == "datetime64[ns]":
                 temp_df[col] = temp_df[col].astype(str)
         temp_df["updated_on"] = pd.Timestamp.now(tz="GMT").strftime("%Y-%m-%d %H:%M:%S")
-        temp_df = temp_df.replace({np.nan: None, 'NaT': None})
+        temp_df = temp_df.replace({np.nan: None, "NaT": None})
         records = temp_df.to_dict("records")
 
         for r in records:
@@ -54,7 +55,7 @@ class YFDataUpdater:
         return records
 
     def _request_yf_api(self, symbol, attribute):
-        ticker = yf.Ticker(symbol)#, session=self._session)
+        ticker = yf.Ticker(symbol)  # , session=self._session)
         data_dict = getattr(ticker, attribute)
         if type(data_dict) in [pd.DataFrame, pd.Series]:
             data_dict = data_dict.to_dict()
@@ -84,7 +85,7 @@ class YFDataUpdater:
         records = []
         for symbol, data in companies_data_dict.items():
             if data:
-                ticker = yf.Ticker(symbol)#, session=self._session)
+                ticker = yf.Ticker(symbol)  # , session=self._session)
                 five_yrs_ago = (
                     (pd.Timestamp.now() - pd.DateOffset(years=5))
                     .replace(month=1, day=1)
@@ -135,11 +136,8 @@ class YFDataUpdater:
 
         attribute = "info"
         companies_data_dict = self._get_companies_data(attribute)
-        
-        metric_dict = {
-            "forwardEps": "forward_eps",
-            "fullTimeEmployees": "employee_num"
-        }
+
+        metric_dict = {"forwardEps": "forward_eps", "fullTimeEmployees": "employee_num"}
         target_metrics = list(metric_dict.keys())
 
         for symbol, data in companies_data_dict.items():
@@ -150,17 +148,17 @@ class YFDataUpdater:
                     ]
                 else:
                     companies_key_stats_dict.setdefault(symbol, {})[metric] = None
-        
-        attribute = 'major_holders'
+
+        attribute = "major_holders"
         holders_breakdown_dict = self._get_companies_data(attribute)
-        
+
         for symbol, raw_data in holders_breakdown_dict.items():
             if raw_data:
-                holders_breakdown = raw_data['Value']
+                holders_breakdown = raw_data["Value"]
             else:
                 holders_breakdown = None
-            companies_key_stats_dict[symbol]['holders_breakdown'] = holders_breakdown
-        
+            companies_key_stats_dict[symbol]["holders_breakdown"] = holders_breakdown
+
         companies_key_stats_df = pd.DataFrame(companies_key_stats_dict).T
         companies_key_stats_df = companies_key_stats_df.reset_index()
         companies_key_stats_df = companies_key_stats_df.rename(
@@ -202,10 +200,10 @@ class YFDataUpdater:
             filtered_companies_financial_dict = {}
             for symbol, data in companies_financial_dict.items():
                 for date in data.keys():
-                    last_financial_date = last_financial_dates.get(symbol) or '1900-01-01'
-                    if date > pd.to_datetime(
-                        last_financial_date
-                    ):
+                    last_financial_date = (
+                        last_financial_dates.get(symbol) or "1900-01-01"
+                    )
+                    if date > pd.to_datetime(last_financial_date):
                         filtered_companies_financial_dict.setdefault(symbol, {})[
                             date
                         ] = data[date]
@@ -213,15 +211,25 @@ class YFDataUpdater:
         else:
             filtered_companies_financial_dict = companies_financial_dict
 
-        companies_financial_df = pd.DataFrame(columns=["symbol", "date"] + target_metrics)
+        companies_financial_df = pd.DataFrame(
+            columns=["symbol", "date"] + target_metrics
+        )
         for symbol, dates_data in filtered_companies_financial_dict.items():
             for date, metrics in dates_data.items():
-                row_data = [symbol, date] + [metrics.get(metric, None) for metric in target_metrics]
+                row_data = [symbol, date] + [
+                    metrics.get(metric, None) for metric in target_metrics
+                ]
                 columns = ["symbol", "date"] + target_metrics
                 if companies_financial_df.empty:
                     companies_financial_df = pd.DataFrame([row_data], columns=columns)
                 else:
-                    companies_financial_df = pd.concat([companies_financial_df, pd.DataFrame([row_data], columns=columns)], axis=0)
+                    companies_financial_df = pd.concat(
+                        [
+                            companies_financial_df,
+                            pd.DataFrame([row_data], columns=columns),
+                        ],
+                        axis=0,
+                    )
 
         return companies_financial_df
 
@@ -238,12 +246,47 @@ class YFDataUpdater:
             "EBITDA": "ebitda",
             "Diluted Average Shares": "diluted_shares_outstanding",
             "Interest Expense Non Operating": "interest_expense_non_operating",
+            # --- ADDED: New mappings ---
+            "Interest Income": "interest_income",
+            "Interest Expense": "interest_expense",
+            "Net Interest Income": "net_interest_income",
+            "Interest Income Non Operating": "non_interest_income",  # Direct source
+            "Operating Expense": "operating_expense",
+            "Provision For Doubtful Accounts": "provision_1",  # Temp name 1 for provision
+            "Provision For Credit Losses": "provision_2",  # Temp name 2 for provision
+            "Net Non Operating Interest Income Expense": "non_operating_income_or_loss",
+            "Minority Interests": "minorities",
+            "Cost Of Revenue": "cost_of_revenue_1",  # Temp name 1 for cost of revenue
+            "Reconciled Cost Of Revenue": "cost_of_revenue_2",  # Temp name 2 for cost of revenue
         }
         target_metrics = list(metrics_dict.keys())
         income_stmt_df = self._get_companies_financial_df(
             attribute, target_metrics, quarterly, last_financial_dates
         )
         income_stmt_df = income_stmt_df.rename(columns=metrics_dict)
+
+        # --- ADDED: Logic to combine metrics from multiple possible source names ---
+        # Combine provision fields
+        if (
+            "provision_1" in income_stmt_df.columns
+            and "provision_2" in income_stmt_df.columns
+        ):
+            income_stmt_df["provision"] = income_stmt_df["provision_1"].fillna(
+                income_stmt_df["provision_2"]
+            )
+            income_stmt_df = income_stmt_df.drop(columns=["provision_1", "provision_2"])
+
+        # Combine cost of revenue fields
+        if (
+            "cost_of_revenue_1" in income_stmt_df.columns
+            and "cost_of_revenue_2" in income_stmt_df.columns
+        ):
+            income_stmt_df["cost_of_revenue"] = income_stmt_df[
+                "cost_of_revenue_1"
+            ].fillna(income_stmt_df["cost_of_revenue_2"])
+            income_stmt_df = income_stmt_df.drop(
+                columns=["cost_of_revenue_1", "cost_of_revenue_2"]
+            )
 
         return income_stmt_df
 
@@ -259,9 +302,13 @@ class YFDataUpdater:
             "Total Debt": "total_debt",
             "Stockholders Equity": "stockholders_equity",
             "Total Equity Gross Minority Interest": "total_equity",
-            "Inventory": 'inventories',
-            "Retained Earnings": 'retained_earnings',
-            "Prepaid Assets": 'prepaid_assets'
+            "Inventory": "inventories",
+            "Retained Earnings": "retained_earnings",
+            "Prepaid Assets": "prepaid_assets",
+            # --- ADDED: New mappings ---
+            "Allowance For Doubtful Accounts Receivable": "allowance_for_loans",
+            "Current Assets": "total_current_asset",
+            "Total Non Current Liabilities Net Minority Interest": "total_non_current_liabilities",
         }
         target_metrics = list(metrics_dict.keys())
         balance_sheet_df = self._get_companies_financial_df(
@@ -277,6 +324,9 @@ class YFDataUpdater:
             "Free Cash Flow": "free_cash_flow",
             "Cash Flowsfromusedin Operating Activities Direct": "net_operating_cash_flow",
             "Operating Cash Flow": "net_operating_cash_flow_alt",
+            # --- ADDED: New mappings ---
+            "Changes In Cash": "net_cash_flow",
+            "Capital Expenditure": "capital_expenditure",
         }
         target_metrics = list(metric_dict.keys())
         cash_flow_df = self._get_companies_financial_df(
@@ -327,6 +377,18 @@ class YFDataUpdater:
                 how="outer",
             )
 
+            # --- ADDED: Calculation for non_interest_income as a fallback ---
+            if all(
+                c in companies_financials_df.columns
+                for c in ["non_interest_income", "total_revenue", "net_interest_income"]
+            ):
+                companies_financials_df[
+                    "non_interest_income"
+                ] = companies_financials_df["non_interest_income"].fillna(
+                    companies_financials_df["total_revenue"]
+                    - companies_financials_df["net_interest_income"]
+                )
+
             companies_financials_df["source"] = 1
 
             if wsj_formats:
@@ -375,9 +437,24 @@ class YFDataUpdater:
                 "interest_expense_non_operating",
                 "operating_income",
                 "source",
-                'inventories',
-                'retained_earnings',
-                'prepaid_assets'
+                "inventories",
+                "retained_earnings",
+                "prepaid_assets",
+                # --- ADDED: New columns ---
+                "interest_income",
+                "interest_expense",
+                "net_interest_income",
+                "non_interest_income",
+                "operating_expense",
+                "provision",
+                "non_operating_income_or_loss",
+                "minorities",
+                "cost_of_revenue",
+                "allowance_for_loans",
+                "total_current_asset",
+                "total_non_current_liabilities",
+                "net_cash_flow",
+                "capital_expenditure",
             ]
 
             self.new_records["financials"][period] = self._convert_df_to_records(
@@ -393,7 +470,7 @@ class YFDataUpdater:
         }
         url = f"https://finance.yahoo.com/quote/{symbol}/key-statistics?p={symbol}"
         response = session.get(url, headers=headers)
-        
+
         soup = BeautifulSoup(response.text, "html.parser")
         mcap_key = soup.select_one('td:-soup-contains("Market Cap (intraday)")')
         mcap_value = mcap_key.find_next_sibling("td").text
@@ -411,16 +488,16 @@ class YFDataUpdater:
             symbol = ticker.ticker
             temp_data = data.copy()
             temp_data.index = temp_data.index.strftime("%Y-%m-%d")
-            
+
             new_mcap = ticker.info.get("marketCap", None)
             if not new_mcap:
                 try:
                     new_mcap = self._retrieve_mcap_yf_web(symbol)
                 except:
                     new_mcap = None
-            
+
             mcap_method = 1 if new_mcap else None
-            
+
             # fill mcap
             # try:
             #     new_mcap = ticker.info.get("marketCap", self._retrieve_mcap_yf_web(symbol))
@@ -428,12 +505,14 @@ class YFDataUpdater:
             # except:
             #     new_mcap = None
             #     mcap_method = None
-                
+
             temp_data.loc[temp_data.index.max(), "Market Cap"] = new_mcap
             temp_data.loc[temp_data.index.max(), "mcap_method"] = mcap_method
-            
+
             if new_mcap:
-                calc_share_api = new_mcap / temp_data.loc[temp_data.index.max(), "Close"]
+                calc_share_api = (
+                    new_mcap / temp_data.loc[temp_data.index.max(), "Close"]
+                )
                 calc_share_number = calc_share_api
                 # temp_data['mcap_method'] = temp_data['mcap_method'].fillna(2)
                 mcap_method = 2
@@ -441,20 +520,22 @@ class YFDataUpdater:
                 calc_share_number = calc_share_db
                 # temp_data['mcap_method'] = temp_data['mcap_method'].fillna(3)
                 mcap_method = 3
-                
+
             if calc_share_number:
-                null_mcap_rows = temp_data[temp_data['Market Cap'].isnull()].index
-                temp_data.loc[null_mcap_rows, 'Market Cap'] = temp_data.loc[null_mcap_rows, 'Close'] * calc_share_number
-                temp_data.loc[null_mcap_rows, 'mcap_method'] = mcap_method
-            
+                null_mcap_rows = temp_data[temp_data["Market Cap"].isnull()].index
+                temp_data.loc[null_mcap_rows, "Market Cap"] = (
+                    temp_data.loc[null_mcap_rows, "Close"] * calc_share_number
+                )
+                temp_data.loc[null_mcap_rows, "mcap_method"] = mcap_method
+
             temp_data = temp_data.replace(np.nan, None)
             return temp_data
-        
+
         # price_vol_rows = []
         # mcap_row = None
         symbol_rows = []
-        
-        ticker = yf.Ticker(symbol)#, session=self._session)
+
+        ticker = yf.Ticker(symbol)  # , session=self._session)
 
         if last_daily_datum:
             last_date, last_close, last_volume, last_mcap, last_mcap_method = (
@@ -462,22 +543,22 @@ class YFDataUpdater:
                 last_daily_datum["close"],
                 last_daily_datum["volume"],
                 last_daily_datum["market_cap"],
-                last_daily_datum["mcap_method"]
+                last_daily_datum["mcap_method"],
             )
             data = ticker.history(start=last_date, auto_adjust=False)[
                 ["Close", "Volume"]
             ]
             data.loc[last_date, "Market Cap"] = last_mcap
             data.loc[last_date, "mcap_method"] = last_mcap_method
-            
+
             try:
                 calc_share_db = last_mcap / last_close
             except:
                 calc_share_db = None
-            
+
             if len(data) > 0:
                 data = process_data(data, ticker, calc_share_db)
-                
+
                 if (
                     last_close == data.loc[last_date, "Close"]
                     and last_volume == data.loc[last_date, "Volume"]
@@ -487,17 +568,19 @@ class YFDataUpdater:
 
         # new ticker
         else:
-            date_5y_ago = (datetime.now() - timedelta(days=5 * 365)).strftime("%Y-%m-%d")
+            date_5y_ago = (datetime.now() - timedelta(days=5 * 365)).strftime(
+                "%Y-%m-%d"
+            )
             data = ticker.history(start=date_5y_ago, auto_adjust=False)[
-                            ["Close", "Volume"]
-                        ]
+                ["Close", "Volume"]
+            ]
             # data = ticker.history(start=date_5y_ago, auto_adjust=False)[
             #     ["Close", "Volume"]
             # ]
-            
+
             if len(data) > 0:
                 data = process_data(data, ticker)
-        
+
         if len(data) > 0:
             for idx, row in data.iterrows():
                 symbol_rows.append(
@@ -510,7 +593,7 @@ class YFDataUpdater:
                         "mcap_method": (row["mcap_method"]),
                     }
                 )
-                
+
         return symbol_rows
 
     def create_daily_data_records(self, last_daily_data={}, int_close=False):
@@ -523,9 +606,7 @@ class YFDataUpdater:
         for symbol in self.symbols:
             last_daily_datum = last_daily_data.get(symbol)
             try:
-                symbol_rows = self._get_daily_data(
-                    symbol, last_daily_datum
-                )
+                symbol_rows = self._get_daily_data(symbol, last_daily_datum)
             except Exception as e:
                 retry_symbols.append(symbol)
             else:
@@ -534,9 +615,7 @@ class YFDataUpdater:
         for symbol in retry_symbols:
             last_daily_datum = last_daily_data.get(symbol)
             try:
-                symbol_rows = self._get_daily_data(
-                    symbol, last_daily_datum
-                )
+                symbol_rows = self._get_daily_data(symbol, last_daily_datum)
             except Exception as e:
                 unadded_symbols.append(symbol)
                 print(f"Failed to add {symbol} to daily data because of {e}")
@@ -547,16 +626,15 @@ class YFDataUpdater:
         all_symbols_rows = [
             {"updated_on": dt_now, **record} for record in all_symbols_rows
         ]
-        
-        int_cols = ['volume', 'market_cap', 'mcap_method']
-        
+
+        int_cols = ["volume", "market_cap", "mcap_method"]
+
         if int_close:
-            int_cols.append('close')
-        
+            int_cols.append("close")
+
         for row in all_symbols_rows:
             for col in int_cols:
                 row[col] = self._cast_int(row[col])
-            
-        
+
         self.new_records["daily_data"] = all_symbols_rows
         self.unadded_data["daily_data"] = unadded_symbols
