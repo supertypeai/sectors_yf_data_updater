@@ -39,12 +39,13 @@ class YFDataUpdater:
         else:
             return None
 
-    def _convert_df_to_records(self, df, int_cols=[]):
+    def _convert_df_to_records(self, df, int_cols=[], include_updated_on=True):
         temp_df = df.copy()
         for col in temp_df.columns:
             if temp_df[col].dtype == "datetime64[ns]":
                 temp_df[col] = temp_df[col].astype(str)
-        temp_df["updated_on"] = pd.Timestamp.now(tz="GMT").strftime("%Y-%m-%d %H:%M:%S")
+        if include_updated_on:
+            temp_df["updated_on"] = pd.Timestamp.now(tz="GMT").strftime("%Y-%m-%d %H:%M:%S")
         temp_df = temp_df.replace({np.nan: None, "NaT": None})
         records = temp_df.to_dict("records")
 
@@ -171,7 +172,7 @@ class YFDataUpdater:
         # int_cols = ["employee_num"]
         int_cols = []
         self.new_records["key_stats"] = self._convert_df_to_records(
-            companies_key_stats_df, int_cols
+            companies_key_stats_df, int_cols, include_updated_on=False
         )
 
     def _get_companies_financial_df(
