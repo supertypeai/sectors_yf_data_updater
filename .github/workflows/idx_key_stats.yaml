@@ -2,22 +2,21 @@ name: Update idx_key_stats with IdxYFDataUpdater
 
 on:
   schedule:
-      - cron: '0 13 10 * *' # run at 10th day of every month at 20:00 GMT+7
+    - cron: "0 13 10 * *" # run at 10th day of every month at 20:00 GMT+7
   workflow_dispatch:
 
 jobs:
   trigger_workflow:
     runs-on: ubuntu-latest
     steps:
-
       - name: checkout repo content
-        uses: actions/checkout@v2 # checkout the repository content to github runner
+        uses: actions/checkout@v4 # checkout the repository content to github runner
 
       - name: setup python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9' # install the python version needed
-          
+          python-version: "3.10" # install the python version needed
+
       - name: install python packages
         run: |
           python -m pip install --upgrade pip
@@ -26,10 +25,10 @@ jobs:
 
       - name: execute idx_scrape_data.py script
         env:
-            SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-            SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: python idx_scrape_data.py -tt idx_key_stats -bs -1
-      
+
       - name: Commit and Push Changes
         run: |
           if [[ -n $(git status -s) ]]; then
@@ -41,4 +40,3 @@ jobs:
           else
             echo "No changes to commit."
           fi
-          
