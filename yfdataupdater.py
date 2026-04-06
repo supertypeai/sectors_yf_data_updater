@@ -137,7 +137,9 @@ class YFDataUpdater:
         attribute = "info"
         companies_data_dict = self._get_companies_data(attribute)
 
-        metric_dict = {"forwardEps": "forward_eps", "fullTimeEmployees": "employee_num"}
+        # metric_dict = {"forwardEps": "forward_eps", "fullTimeEmployees": "employee_num"}
+        # Restrict to forward_eps only based on user request
+        metric_dict = {"forwardEps": "forward_eps"}
         target_metrics = list(metric_dict.keys())
 
         for symbol, data in companies_data_dict.items():
@@ -149,15 +151,15 @@ class YFDataUpdater:
                 else:
                     companies_key_stats_dict.setdefault(symbol, {})[metric] = None
 
-        attribute = "major_holders"
-        holders_breakdown_dict = self._get_companies_data(attribute)
+        # attribute = "major_holders"
+        # holders_breakdown_dict = self._get_companies_data(attribute)
 
-        for symbol, raw_data in holders_breakdown_dict.items():
-            if raw_data:
-                holders_breakdown = raw_data["Value"]
-            else:
-                holders_breakdown = None
-            companies_key_stats_dict[symbol]["holders_breakdown"] = holders_breakdown
+        # for symbol, raw_data in holders_breakdown_dict.items():
+        #     if raw_data:
+        #         holders_breakdown = raw_data["Value"]
+        #     else:
+        #         holders_breakdown = None
+        #     companies_key_stats_dict[symbol]["holders_breakdown"] = holders_breakdown
 
         companies_key_stats_df = pd.DataFrame(companies_key_stats_dict).T
         companies_key_stats_df = companies_key_stats_df.reset_index()
@@ -166,7 +168,8 @@ class YFDataUpdater:
         )
         companies_key_stats_df = companies_key_stats_df.rename(columns=metric_dict)
 
-        int_cols = ["employee_num"]
+        # int_cols = ["employee_num"]
+        int_cols = []
         self.new_records["key_stats"] = self._convert_df_to_records(
             companies_key_stats_df, int_cols
         )
