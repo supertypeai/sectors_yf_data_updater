@@ -29,7 +29,12 @@ class IdxYFDataUpdater(YFDataUpdater):
             .execute()
         )
 
-        symbols = [symbol["symbol"] for symbol in response.data]
+        excluded_symbols = {"RIGS.JK"}
+        symbols = [
+            symbol["symbol"]
+            for symbol in response.data
+            if symbol["symbol"].upper() not in excluded_symbols
+        ]
 
         if batch_size == -1:
             batch_symbols = symbols
