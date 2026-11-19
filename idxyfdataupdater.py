@@ -90,6 +90,25 @@ class IdxYFDataUpdater(YFDataUpdater):
                         "total_equity",
                         "free_cash_flow",
                         "net_operating_cash_flow",
+                        # Monetary columns added later to yfdataupdater.py; they
+                        # were written to the DB unconverted (still USD) before.
+                        "capital_expenditure",
+                        "net_cash_flow",
+                        "inventories",
+                        "retained_earnings",
+                        "prepaid_assets",
+                        "interest_income",
+                        "interest_expense",
+                        "net_interest_income",
+                        "non_interest_income",
+                        "operating_expense",
+                        "provision",
+                        "non_operating_income_or_loss",
+                        "minorities",
+                        "cost_of_revenue",
+                        "allowance_for_loans",
+                        "total_current_asset",
+                        "total_non_current_liabilities",
                     ]:
                         if type(new_record[k]) == int:
                             new_record[k] = self._cast_int(v * conversion_rate)
